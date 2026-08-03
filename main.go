@@ -274,7 +274,7 @@ func runDaemon(cfg *config.Config, resolver *geo.Resolver, db *repository.DB, si
 	// 启动采集定时器
 	startCollectTimer := func() {
 		if cfg.CollectTime != "" {
-			nextCollect := nextTime(cfg.CollectTime)
+			nextCollect := nextTimeMulti(cfg.CollectTime)
 			collectTimer = time.NewTimer(time.Until(nextCollect))
 			dc.SetNextCollect(nextCollect)
 			logger.Info("DAEMON", "定时采集已激活，下次: %s", nextCollect.Format("2006-01-02 15:04:05"))
@@ -315,7 +315,7 @@ func runDaemon(cfg *config.Config, resolver *geo.Resolver, db *repository.DB, si
 				pushAfterBenchmark(cfg, resolver, db, collectStart)
 			}
 			if cfg.CollectTime != "" {
-				next := nextTime(cfg.CollectTime)
+				next := nextTimeMulti(cfg.CollectTime)
 				collectTimer.Reset(time.Until(next))
 				dc.SetNextCollect(next)
 				logger.Info("DAEMON", "下次数据采集时间: %s", next.Format("2006-01-02 15:04:05"))
@@ -392,6 +392,27 @@ func nextTime(hhmm string) time.Time {
 		next = next.Add(24 * time.Hour)
 	}
 	return next
+}
+
+// nextTimeMulti 支持逗号分隔的多个时间点（如 "06:00,12:00,18:00"），返回最近的下一个触发时间
+func nextTimeMulti(hhmmList string) time.Time {
+	now := time.Now()
+	var earliest time.Time
+	for _, hhmm := range strings.Split(hhmmList, ",") {
+		hhmm = strings.TrimSpace(hhmm)
+		if hhmm == "" {
+			continue
+		}
+		t, _ := time.Parse("15:04", hhmm)
+		next := time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), 0, 0, now.Location())
+		if !next.After(now) {
+			next = next.Add(24 * time.Hour)
+		}
+		if earliest.IsZero() || next.Before(earliest) {
+			earliest = next
+		}
+	}
+	return earliest
 }
 
 func runBenchmark(cfg *config.Config, resolver *geo.Resolver, db *repository.DB) {

@@ -1113,7 +1113,7 @@ function renderConfigForm(c){
     field('风险分数阈值','ip_risk_score_threshold','number',{hint:'0-100,大于此值视为高风险并过滤,默认 70'}) +
     field('风险查询超时','ip_risk_filter_timeout',{hint:'如 5s'}));
   html += sec('自动定时运行参数',
-    field('采集时间(HH:MM)','collect_time') + field('定时间隔(分钟)','interval','number',{hint:'守护模式下定时测速间隔,0=仅按采集时间执行'}) +
+    field('采集时间(HH:MM)','collect_time',{hint:'支持多时间点,逗号分隔,如 06:00,12:00,18:00'}) + field('定时间隔(分钟)','interval','number',{hint:'守护模式下定时测速间隔,0=仅按采集时间执行'}) +
     field('推送间隔(小时)','push_interval','number') + field('输出前N个','top_n','number',{hint:'每线路评分后保留的最优IP数量,用于结果展示与CSV导出(推送数量另由推送设置控制)'}) +
     field('日志文件','log_file',{hint:'变更需重启'}) +
     `<div class="field full"><label>直连模式</label>

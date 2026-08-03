@@ -545,7 +545,7 @@ web_password: "your-password"
 ./cf-speedtest -config config.yaml -daemon
 ```
 
-按 `collect_time` 每日定时采集（采集后自动推送），每 `push_interval` 小时自动推送。
+按 `collect_time` 每日定时采集（支持多时间点如 `06:00,12:00,18:00`，采集后自动推送），每 `push_interval` 小时自动推送。
 
 #### 仅推送（不测速）
 

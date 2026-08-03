@@ -164,7 +164,7 @@ type Config struct {
 	IPDBPath      string        `yaml:"ip_db_path"`     // IP 归属地数据库路径
 	LogFile       string        `yaml:"log_file"`       // 日志文件路径
 	Interval      int           `yaml:"interval"`       // 定时任务间隔（分钟，兼容旧配置）
-	CollectTime   string        `yaml:"collect_time"`   // 数据采集时间（HH:MM 格式，每天定时采集，如 "05:00"）
+	CollectTime   string        `yaml:"collect_time"`   // 数据采集时间（HH:MM 格式，支持逗号分隔多时间点如 "06:00,12:00,18:00"）
 	PushInterval  int           `yaml:"push_interval"`  // 自动推送间隔（小时，每 N 小时重测并推送，0 表示不自动推送）
 	DBPath        string        `yaml:"db_path"`        // SQLite 数据库文件路径
 	IPExpireTime  time.Duration `yaml:"ip_expire_time"` // IP 结果过期时间
@@ -336,10 +336,16 @@ func (cfg *Config) Validate() error {
 		}
 	}
 
-	// 验证数据采集时间格式（HH:MM）
+	// 验证数据采集时间格式（HH:MM，支持逗号分隔多时间点如 "06:00,12:00,18:00"）
 	if cfg.CollectTime != "" {
-		if _, err := time.Parse("15:04", cfg.CollectTime); err != nil {
-			return fmt.Errorf("collect_time 格式错误: '%s'，必须为 HH:MM 格式（如 05:00）", cfg.CollectTime)
+		for _, t := range strings.Split(cfg.CollectTime, ",") {
+			t = strings.TrimSpace(t)
+			if t == "" {
+				continue
+			}
+			if _, err := time.Parse("15:04", t); err != nil {
+				return fmt.Errorf("collect_time 格式错误: '%s'，必须为 HH:MM 格式（如 05:00 或 06:00,12:00,18:00）", t)
+			}
 		}
 	}
 

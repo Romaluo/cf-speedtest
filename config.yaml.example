@@ -100,7 +100,7 @@ daemon_mode: false
 ip_db_path: ip2region.xdb
 log_file: cf-speedtest.log
 interval: 60
-collect_time: "06:00"
+collect_time: "06:00"  # 支持多时间点，逗号分隔，如 "06:00,12:00,18:00"
 push_interval: 6
 db_path: speedtest.db
 ip_expire_time: 24h0m0s
