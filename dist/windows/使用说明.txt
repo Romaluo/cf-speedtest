@@ -1,0 +1,27 @@
+CF-SpeedTest Windows 使用说明
+==============================
+
+1. 解压到任意目录（如 C:\cf-speedtest）
+
+2. 首次使用：
+   - 编辑 config.yaml，填入你的 Cloudflare/GitHub 配置
+   - 修改 web_username 和 web_password 为你的账号密码
+
+3. 启动方式（二选一）：
+   - 双击"启动服务.bat" - 普通 Web 模式
+   - 双击"后台模式.bat"   - 自动定时采集和推送
+
+4. 浏览器访问 http://localhost:8080 登录使用
+
+5. 注意事项：
+   - ip2region.xdb 必须与 exe 在同一目录
+   - Windows Defender 可能误报，添加信任即可
+   - 首次运行建议关闭防火墙或放行 8080 端口
+   - 数据库文件 speedtest.db 会自动生成
+
+常见问题：
+- 端口被占用：修改 config.yaml 中的 web_port
+- 忘记密码：修改 config.yaml 中的 web_password 后重启
+- 后台模式不生效：确认 daemon_mode: true 在 config.yaml 中
+
+版本: 1.0.0

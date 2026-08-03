@@ -1,0 +1,74 @@
+# CF-SpeedTest Windows 用户配置
+# 首次使用请修改以下配置
+
+# IP 来源
+ipv4_url: https://www.cloudflare.com/ips-v4
+ipv4_enabled: true
+ipv4_count: 1000
+extra_ip_urls:
+  - 你的自定义采集网址1
+  - 你的自定义采集网址2
+
+# IP 选择模式: auto(自动) / manual(手动) / hybrid(混合)
+ip_select_mode: manual
+ip_select_countries:
+  - JP
+  - SG
+  - KR
+  - HK
+  - TW
+
+# 测速参数
+concurrency: 80
+tcp_ping_count: 2
+tcp_ping_ports: [443, 2053, 2083, 2087, 2096, 8443]
+tcp_ping_timeout: 3s
+http_timeout: 8s
+http_connect_timeout: 5s
+dl_timeout: 10s
+dl_connect_timeout: 2s
+dl_read_timeout: 10s
+
+# 硬性格入规则
+rule_max_tcp_latency: 1000
+rule_max_loss_rate: 0
+rule_max_http_latency: 2000
+rule_min_download_mbps: 0.1
+
+# 评分权重
+weight_latency: 0.35
+weight_loss: 0.25
+weight_bandwidth: 0.30
+weight_jitter: 0.10
+min_score_threshold: 80
+max_db_size: 2000
+top_n: 100
+
+# Cloudflare DNS 推送 (填入你的配置)
+cf_api_key: ""
+cf_zone_id: ""
+cf_dns_name: ""
+cf_dns_ttl: 300
+cf_dns_options: proxied=false
+cf_push_count: 0
+
+# GitHub 推送 (填入你的配置)
+github_token: ""
+github_repo: ""
+github_file_path: IP.txt
+github_branch: main
+github_push_count: 0
+
+# 自动化
+daemon_mode: false
+collect_time: "05:00"
+push_interval: 4
+ip_expire_time: 24h
+data_retention: 30
+
+# Web Dashboard
+web_enable: true
+web_host: 0.0.0.0
+web_port: 8080
+web_username: admin
+web_password: admin

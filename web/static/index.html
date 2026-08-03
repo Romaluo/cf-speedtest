@@ -1,0 +1,1589 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CF-Speedtest Dashboard</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#1a2027; --panel2:#222b33; --border:#2d3743;
+    --txt:#e2e8f0; --muted:#8b96a5; --accent:#3b82f6; --accent2:#10b981;
+    --warn:#f59e0b; --err:#ef4444; --ok:#22c55e;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+       background:var(--bg);color:var(--txt);font-size:14px;line-height:1.5}
+  a{color:var(--accent);text-decoration:none}
+  button{cursor:pointer;border:none;border-radius:6px;padding:8px 14px;font-size:13px;background:var(--accent);color:#fff;transition:.15s}
+  button:hover{filter:brightness(1.1)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  button.ghost{background:transparent;border:1px solid var(--border);color:var(--txt)}
+  button.ghost:hover{border-color:var(--accent)}
+  button.danger{background:var(--err)}
+  button.sm{padding:4px 10px;font-size:12px}
+  input,select,textarea{background:var(--panel2);border:1px solid var(--border);border-radius:6px;color:var(--txt);padding:7px 10px;font-size:13px;outline:none}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+  input[type=checkbox]{accent-color:var(--accent)}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  tr:hover td{background:var(--panel2)}
+  .tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:var(--panel2);color:var(--muted)}
+  .tag.ok{background:rgba(34,197,94,.15);color:var(--ok)}
+  .tag.warn{background:rgba(245,158,11,.15);color:var(--warn)}
+  .tag.err{background:rgba(239,68,68,.15);color:var(--err)}
+
+  /* login */
+  #login{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg)}
+  .login-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:32px;width:340px}
+  .login-box h1{font-size:18px;margin-bottom:6px}
+  .login-box p{color:var(--muted);font-size:12px;margin-bottom:20px}
+  .login-box .field{margin-bottom:14px}
+  .login-box label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+  .login-box input{width:100%}
+  .login-box .err{color:var(--err);font-size:12px;margin-top:8px;min-height:16px}
+
+  /* layout */
+  #app{display:none}
+  header{display:flex;align-items:center;gap:18px;padding:0 20px;height:54px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
+  header .brand{font-weight:700;font-size:15px}
+  header .brand span{color:var(--accent)}
+  nav{display:flex;gap:4px;flex:1}
+  nav a{padding:8px 14px;border-radius:6px;color:var(--muted);font-size:13px;cursor:pointer}
+  nav a.active{background:var(--panel2);color:var(--txt)}
+  .uinfo{color:var(--muted);font-size:12px}
+  main{padding:20px;max-width:1400px;margin:0 auto}
+  .view{display:none}.view.active{display:block}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:20px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px}
+  .card .lbl{color:var(--muted);font-size:12px;margin-bottom:6px}
+  .card .val{font-size:24px;font-weight:700}
+  .card .sub{color:var(--muted);font-size:11px;margin-top:4px}
+
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px}
+  .panel h3{font-size:14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .row label{font-size:12px;color:var(--muted);min-width:70px}
+  .grow{flex:1;min-width:140px}
+
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .toolbar input,.toolbar select{width:auto;min-width:120px}
+  .pg{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:12px;font-size:12px;color:var(--muted)}
+  .score-bar{display:inline-block;width:48px;height:6px;background:var(--panel2);border-radius:3px;overflow:hidden;vertical-align:middle;margin-right:6px}
+  .score-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--err),var(--warn),var(--ok))}
+  .grade-badge{display:inline-block;width:18px;height:18px;line-height:18px;text-align:center;border-radius:3px;font-size:11px;font-weight:700;margin-left:4px}
+  .grade-a{background:#c8e6c9;color:#1a5e20}
+  .grade-b{background:#bbdefb;color:#0d47a1}
+  .grade-c{background:#fff3e0;color:#e65100}
+  .grade-d{background:#ffcdd2;color:#b71c1c}
+
+  /* TCP 端口选择器 */
+  .port-selector{display:flex;flex-direction:column;gap:8px}
+  .port-presets{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .port-toggle{padding:4px 10px;font-size:12px;border-radius:4px;background:var(--panel2);border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:.15s}
+  .port-toggle.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .port-toggle:hover{border-color:var(--accent)}
+  .port-input-row{display:flex;gap:6px;align-items:center}
+  .port-input-row input{width:160px}
+  .port-tags{display:flex;gap:6px;flex-wrap:wrap;min-height:28px}
+  .port-tag{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;background:rgba(59,130,246,.15);color:var(--accent);font-size:12px;font-weight:600}
+  .port-tag .rm{cursor:pointer;opacity:.6;font-size:14px;line-height:1}
+  .port-tag .rm:hover{opacity:1;color:var(--err)}
+  .port-empty{color:var(--muted);font-size:12px;font-style:italic}
+
+  /* 国家代码选择器 */
+  .country-selector{display:flex;flex-direction:column;gap:8px}
+  .country-presets{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .country-toggle{padding:4px 12px;font-size:12px;border-radius:4px;background:var(--panel2);border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:.15s;font-weight:600}
+  .country-toggle.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .country-toggle:hover{border-color:var(--accent)}
+  .country-input-row{display:flex;gap:6px;align-items:center}
+  .country-input-row input{width:120px;text-transform:uppercase}
+  .country-tags{display:flex;gap:6px;flex-wrap:wrap;min-height:28px}
+  .country-tag{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:4px;background:rgba(34,197,94,.15);color:#22c55e;font-size:12px;font-weight:600}
+  .country-tag .rm{cursor:pointer;opacity:.6;font-size:14px;line-height:1}
+  .country-tag .rm:hover{opacity:1;color:var(--err)}
+
+  pre.logs{background:#0b0f13;border:1px solid var(--border);border-radius:8px;padding:12px;overflow:auto;max-height:600px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#a7c5e0}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}
+  .form-grid .full{grid-column:1/-1}
+  .form-grid .field{margin-bottom:12px}
+  .form-grid label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+  .form-grid input,.form-grid select,.form-grid textarea{width:100%}
+  .job{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px}
+  .job{border-left:3px solid transparent;padding-left:12px;margin-bottom:12px;transition:border-color .3s}
+  .job .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .job-running{border-left-color:var(--accent)}
+  .job-completed{border-left-color:#22c55e}
+  .job-failed{border-left-color:#ef4444}
+  .job-canceled{border-left-color:#6b7280}
+  .job-running .head b{animation:pulse 1.5s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+  .pbar{height:8px;background:var(--bg);border-radius:4px;overflow:hidden;margin:8px 0}
+  .pbar i{display:block;height:100%;background:var(--accent);transition:width .5s ease}
+  .job pre{font-size:11px;max-height:300px;overflow:auto;background:#0b0f13;padding:8px;border-radius:6px;color:#a7c5e0;font-family:ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all}
+  #jobs-list{max-height:calc(100vh - 220px);overflow-y:auto;scroll-behavior:smooth}
+  .hint{color:var(--muted);font-size:11px;margin-top:4px}
+  .field label{display:flex;align-items:center;gap:4px}
+  .info-icon{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:var(--border);color:var(--muted);font-size:9px;font-style:normal;cursor:help;flex-shrink:0;transition:.15s}
+  .info-icon:hover{background:var(--accent);color:#fff}
+  .info-tip{display:none;position:fixed;z-index:200;width:340px;max-width:calc(100vw - 16px);background:var(--panel);border:1px solid var(--accent);border-radius:8px;padding:10px 12px;font-size:11px;line-height:1.7;color:var(--txt);box-shadow:0 6px 20px rgba(0,0,0,.5);white-space:normal}
+  .info-tip.show{display:block;animation:tipFade .15s ease}
+  .info-tip::before{content:'';position:absolute;top:-5px;left:var(--arrow-x,50%);transform:translateX(-50%) rotate(45deg);width:8px;height:8px;background:var(--panel);border-left:1px solid var(--accent);border-top:1px solid var(--accent)}
+  @keyframes tipFade{from{opacity:0}to{opacity:1}}
+  .info-tip b{color:var(--accent);font-weight:600}
+  .info-tip .tip-row{margin-bottom:2px}
+  .info-tip .tip-row:last-child{margin-bottom:0}
+
+  /* 可排序表头 */
+  th.sortable{cursor:pointer;user-select:none;white-space:nowrap;transition:color .15s}
+  th.sortable:hover{color:var(--accent)}
+  th.sortable.active{color:var(--accent)}
+  .sort-arrow{display:inline-block;width:14px;font-size:10px;color:var(--muted);text-align:left}
+  th.sortable.active .sort-arrow{color:var(--accent)}
+  .toast{position:fixed;bottom:20px;right:20px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 18px;z-index:100;max-width:380px;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+  .toast.ok{border-color:var(--ok)}.toast.err{border-color:var(--err)}
+  .hidden{display:none!important}
+
+  /* 任务运行时: 导航标签保持可用(允许查看数据/中途终止任务),
+     仅锁定各标签页内的按钮/输入等交互元素(由 lockAllControlsExcept 处理) */
+  body.task-running #btn-cancel-job{opacity:1!important}
+</style>
+</head>
+<body>
+
+<!-- 登录页 -->
+<div id="login">
+  <div class="login-box">
+    <h1>CF-Speedtest <span>Dashboard</span></h1>
+    <p>Cloudflare IP 测速管理控制台</p>
+    <div class="field"><label>用户名</label><input id="li-user" placeholder="admin" autofocus></div>
+    <div class="field"><label>密码</label><input id="li-pass" type="password" placeholder="admin"></div>
+    <button id="li-btn" style="width:100%">登录</button>
+    <div class="err" id="li-err"></div>
+  </div>
+</div>
+
+<!-- 主应用 -->
+<div id="app">
+  <header>
+    <div class="brand">CF-<span>Speedtest</span></div>
+    <nav>
+      <a data-tab="dash" class="active">概览</a>
+      <a data-tab="results">IP数据库</a>
+      <a data-tab="config">配置</a>
+      <a data-tab="jobs">任务</a>
+      <a data-tab="logs">日志</a>
+    </nav>
+    <span class="uinfo" id="uinfo"></span>
+    <button class="ghost sm" id="logout-btn">退出</button>
+  </header>
+  <main>
+
+    <!-- 概览 -->
+    <section class="view active" id="view-dash">
+      <div class="cards" id="stat-cards"></div>
+      <div class="panel">
+        <h3>推送器状态</h3>
+        <div id="pusher-status"></div>
+      </div>
+      <div class="panel">
+        <h3>手动操作</h3>
+        <div class="row">
+          <button id="btn-trigger-benchmark" onclick="triggerJob('benchmark')">立即测速</button>
+          <button id="btn-trigger-push" onclick="triggerJob('push')">立即推送</button>
+          <button id="btn-cancel-job" class="danger" onclick="cancelJob()" disabled>终止任务</button>
+          <span class="hint">测速: 拉取IP+增量测速+入库　|　推送: 推送当前最优结果到 CF/GitHub</span>
+        </div>
+        <div id="daemon-block-hint" class="hint" style="display:none;margin-top:10px;padding:10px 12px;background:rgba(245,158,11,.1);border:1px solid var(--warn);border-radius:6px;color:var(--warn);font-size:12px;line-height:1.6">
+          当前系统正处于后台运行状态，手动操作已禁用。如需要执行手动操作，请先关闭后台模式，以避免与后台正在进行的测速或推送任务发生冲突。
+        </div>
+        <div id="dash-current-job"></div>
+      </div>
+      <div class="panel" style="border-color:var(--err)">
+        <h3 style="color:var(--err)">危险操作
+          <span>
+            <button class="ghost sm" onclick="loadBackups()">查看备份</button>
+            <button class="danger" onclick="showClearDBConfirm()" id="clear-db-btn">
+              <span style="margin-right:4px">⚠</span>清空数据库
+            </button>
+          </span>
+        </h3>
+        <div class="hint" style="color:var(--err)">此操作将永久删除数据库中所有数据。执行前会自动创建备份，5分钟内可恢复。</div>
+        <div id="restore-panel" style="display:none;margin-top:12px;padding:12px;background:rgba(245,158,11,.1);border:1px solid var(--warn);border-radius:6px"></div>
+        <div id="backups-panel" style="display:none;margin-top:12px"></div>
+      </div>
+    </section>
+
+    <!-- IP数据库 -->
+    <section class="view" id="view-results">
+      <div class="panel">
+        <h3>IP数据库</h3>
+        <div class="toolbar">
+          <button onclick="resetFilters()">全部显示</button>
+          <div style="flex:1;text-align:center">
+            <span id="ip-total-count" style="display:inline-block;font-size:18px;font-weight:700;color:#4caf50;padding:6px 24px;border-radius:8px;background:rgba(76,175,80,0.12);border:1px solid rgba(76,175,80,0.3)">IP 总数: 0</span>
+          </div>
+          <button class="ghost" onclick="exportTop()" id="btn-export-top">导出</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table id="results-table">
+            <thead><tr>
+              <th>#</th><th>IP:端口</th>
+              <th>
+                <div style="display:flex;flex-direction:column;gap:2px">
+                  <span style="font-size:12px">IP国家</span>
+                  <select id="f-country" onchange="onCountryFilter()" style="padding:2px 6px;font-size:11px;width:100%;min-width:80px">
+                    <option value="">全部</option>
+                  </select>
+                </div>
+              </th>
+              <th>本机线路</th>
+              <th class="sortable" data-sort="latency" onclick="toggleSort('latency')">TCP延迟 <span class="sort-arrow" id="sort-latency"></span></th>
+              <th class="sortable" data-sort="loss_rate" onclick="toggleSort('loss_rate')">丢包率 <span class="sort-arrow" id="sort-loss_rate"></span></th>
+              <th class="sortable" data-sort="http_latency" onclick="toggleSort('http_latency')">HTTP延迟 <span class="sort-arrow" id="sort-http_latency"></span></th>
+              <th class="sortable" data-sort="bandwidth" onclick="toggleSort('bandwidth')">下载带宽 <span class="sort-arrow" id="sort-bandwidth"></span></th>
+              <th class="sortable" data-sort="score" onclick="toggleSort('score')">评分 <span class="sort-arrow" id="sort-score"></span></th>
+              <th>更新时间</th><th>操作</th>
+            </tr></thead>
+            <tbody id="results-body"></tbody>
+          </table>
+        </div>
+        <div class="pg">
+          <span id="pg-info"></span>
+          <div>
+            <button class="ghost sm" onclick="prevPage()">上一页</button>
+            <button class="ghost sm" onclick="nextPage()">下一页</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 配置 -->
+    <section class="view" id="view-config">
+      <div class="panel">
+        <h3>配置编辑
+          <span>
+            <button class="ghost sm" onclick="testConfig()">校验</button>
+            <button onclick="saveConfig()">保存</button>
+            <button class="ghost sm" onclick="restartSystem()" id="restart-btn">重启系统</button>
+          </span>
+        </h3>
+        <div class="hint" style="margin-bottom:12px">保存会覆盖 config.yaml（注释将丢失，原始版本自动备份为 .bak）；db_path/log_file/daemon_mode 变更需重启生效。</div>
+        <div id="restart-status" class="hint" style="display:none;margin-bottom:12px"></div>
+        <div id="config-form"></div>
+      </div>
+    </section>
+
+    <!-- 任务 -->
+    <section class="view" id="view-jobs">
+      <div class="panel">
+        <h3>任务列表 <button class="ghost sm" onclick="loadJobs()">刷新</button></h3>
+        <div id="jobs-list"></div>
+      </div>
+    </section>
+
+    <!-- 日志 -->
+    <section class="view" id="view-logs">
+      <div class="panel">
+        <h3>运行日志
+          <span>
+            <select id="log-lines"><option value="100">100行</option><option value="500" selected>500行</option><option value="2000">2000行</option></select>
+            <button class="ghost sm" onclick="loadLogs()">刷新</button>
+          </span>
+        </h3>
+        <pre class="logs" id="log-box"></pre>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<!-- 自定义确认对话框（替代原生 confirm，避免深色主题下黑屏） -->
+<div id="confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;align-items:center;justify-content:center;">
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:420px;width:90%;">
+    <div id="confirm-msg" style="margin-bottom:20px;font-size:14px;line-height:1.6;"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="ghost" id="confirm-cancel">取消</button>
+      <button id="confirm-ok">确定</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+// ===== Tooltip 智能定位（防止溢出屏幕）=====
+function showTip(icon){
+  const tip = icon.querySelector('.info-tip');
+  if(!tip) return;
+  tip.style.visibility = 'hidden';
+  tip.classList.add('show');
+  const ir = icon.getBoundingClientRect();
+  const tr = tip.getBoundingClientRect();
+  const vw = window.innerWidth, margin = 8;
+  let left = ir.left + ir.width/2 - tr.width/2;
+  if(left < margin) left = margin;
+  if(left + tr.width > vw - margin) left = vw - margin - tr.width;
+  tip.style.left = left + 'px';
+  tip.style.top = (ir.bottom + 6) + 'px';
+  const arrowX = ir.left + ir.width/2 - left;
+  tip.style.setProperty('--arrow-x', arrowX + 'px');
+  tip.style.visibility = '';
+}
+function hideTip(icon){
+  const tip = icon.querySelector('.info-tip');
+  if(tip){ tip.classList.remove('show'); tip.style.left=''; tip.style.top=''; tip.style.removeProperty('--arrow-x'); }
+}
+document.addEventListener('mouseover', e => { const ic = e.target.closest('.info-icon'); if(ic) showTip(ic); });
+document.addEventListener('mouseout', e => { const ic = e.target.closest('.info-icon'); if(ic) hideTip(ic); });
+let curUser = '';
+let resultPage = {offset:0, limit:50, total:0};
+let sortState = {field:'score', order:'desc'}; // 默认按评分降序
+let jobPollTimer = null;
+
+// ===== 自定义确认对话框 =====
+function customConfirm(msg){
+  return new Promise(resolve => {
+    const overlay = $('#confirm-overlay');
+    $('#confirm-msg').textContent = msg;
+    const ok = $('#confirm-ok');
+    const cancel = $('#confirm-cancel');
+    // 安全兜底: 即使在任务运行期间(lockAllControlsExcept 已禁用所有按钮),
+    // 也强制启用确认框按钮,确保用户能操作对话框
+    ok.disabled = false;
+    cancel.disabled = false;
+    ok.removeAttribute('data-task-locked');
+    cancel.removeAttribute('data-task-locked');
+    overlay.style.display = 'flex';
+    const cleanup = val => { overlay.style.display='none'; ok.onclick=null; cancel.onclick=null; resolve(val); };
+    ok.onclick = () => cleanup(true);
+    cancel.onclick = () => cleanup(false);
+  });
+}
+
+// ===== API =====
+async function api(path, opts={}){
+  const r = await fetch(path, {
+    headers: {'Content-Type':'application/json', ...(opts.headers||{})},
+    ...opts
+  });
+  if(r.status === 401){
+    showLogin(); throw new Error('未登录');
+  }
+  const txt = await r.text();
+  let data = txt ? JSON.parse(txt) : {};
+  if(!r.ok) throw new Error(data.error || ('HTTP '+r.status));
+  return data;
+}
+function toast(msg, type='ok'){
+  const t = $('#toast');
+  t.textContent = msg; t.className = 'toast '+type;
+  setTimeout(()=>t.classList.add('hidden'), 4000);
+}
+
+// ===== 登录 =====
+async function checkAuth(){
+  try{
+    const s = await api('/api/auth/status');
+    if(s.logged_in){ curUser = s.username; showApp(); }
+    else showLogin();
+  }catch(e){ showLogin(); }
+}
+async function doLogin(){
+  $('#li-err').textContent='';
+  try{
+    await api('/api/login',{method:'POST',body:JSON.stringify({username:$('#li-user').value,password:$('#li-pass').value})});
+    curUser = $('#li-user').value;
+    localStorage.setItem('cf_user', curUser);
+    showApp();
+  }catch(e){ $('#li-err').textContent = e.message; }
+}
+async function doLogout(){
+  await api('/api/logout',{method:'POST'});
+  localStorage.removeItem('cf_user');
+  showLogin();
+}
+function showLogin(){
+  $('#login').style.display='flex';
+  $('#app').style.display='none';
+  // 预填保存的用户名
+  const savedUser = localStorage.getItem('cf_user');
+  if(savedUser) $('#li-user').value = savedUser;
+}
+function showApp(){ $('#login').style.display='none'; $('#app').style.display='block'; $('#uinfo').textContent='用户: '+curUser; switchTab('dash'); loadAll(); }
+async function loadAll(){
+  if(!curConfig){ try{ curConfig = await api('/api/config'); }catch(e){} }
+  // 登录后立即检测 daemon 状态,同步"立即测速/立即推送"按钮的可用性
+  // 修复:此前仅在进入"配置"tab 时才调用 pollDaemonStatus,导致登录后若 daemon 已激活,
+  // 按钮仍可点击,用户可重复触发与定时任务冲突的手动测速/推送
+  pollDaemonStatus();
+}
+
+// ===== Tab =====
+$$('nav a').forEach(a=>a.addEventListener('click',()=>switchTab(a.dataset.tab)));
+function switchTab(tab){
+  $$('.view').forEach(v=>v.classList.remove('active'));
+  $('#view-'+tab).classList.add('active');
+  $$('nav a').forEach(a=>a.classList.toggle('active',a.dataset.tab===tab));
+  if(tab==='dash') refreshDash();
+  if(tab==='results'){ updateSortIndicators(); loadResults(); }
+  if(tab==='config') loadConfig();
+  if(tab==='jobs') loadJobs();
+  if(tab==='logs') loadLogs();
+}
+
+// ===== 概览 =====
+async function refreshDash(){
+  try{
+    const [stats, pushers, sys] = await Promise.all([api('/api/stats'), api('/api/pushers/status'), api('/api/system')]);
+    renderStatCards(stats, sys);
+    renderPushers(pushers);
+    renderCurrentJob();
+  }catch(e){ toast(e.message,'err'); }
+}
+function gradeLabel(sc){return sc>=80?'A级 优秀':sc>=60?'B级 良好':sc>=40?'C级 可用':'D级 差';}
+function renderStatCards(s, sys){
+  const cards = [
+    {lbl:'数据库记录', val:s.total, sub:'条'},
+    {lbl:'平均延迟', val:(s.avg_latency_ms||0).toFixed(0)+' ms', sub:'TCP 平均'},
+    {lbl:'最低延迟', val:(s.min_latency_ms||0).toFixed(0)+' ms', sub:'TCP 最低'},
+    {lbl:'平均带宽', val:(s.avg_bandwidth_mbps||0).toFixed(1), sub:'MB/s'},
+    {lbl:'峰值带宽', val:(s.max_bandwidth_mbps||0).toFixed(1), sub:'MB/s'},
+    {lbl:'最高评分', val:(s.top_score||0).toFixed(2), sub:gradeLabel(s.top_score||0)},
+    {lbl:'平均丢包', val:((s.avg_loss_rate||0)*100).toFixed(1)+'%', sub:'丢包率'},
+    {lbl:'运行时长', val:fmtUptime(sys.uptime_sec), sub:'版本 '+sys.version},
+  ];
+  $('#stat-cards').innerHTML = cards.map(c=>`<div class="card"><div class="lbl">${c.lbl}</div><div class="val">${c.val}</div><div class="sub">${c.sub}</div></div>`).join('');
+}
+function renderPushers(p){
+  const cf = p.cloudflare, gh = p.github;
+  const card = (title, c, type) => `
+    <div class="card" style="grid-column:span 2">
+      <div class="lbl">${title}</div>
+      <div style="margin-top:8px">
+        <span class="tag ${c.enabled?'warn':'ok'}">${c.enabled?'已启用':'未启用'}</span>
+        <span class="tag ${c.configured?'ok':'err'}">${c.configured?'配置就绪':'配置缺失'}</span>
+        ${c.has_token?'<span class="tag">Token 已设置</span>':'<span class="tag err">无 Token</span>'}
+      </div>
+      <div class="sub" style="margin-top:8px">${type==='cf'?`域名: ${c.dns_name||'-'} · TTL: ${c.ttl}s · 推送数: ${c.push_count}`:`仓库: ${c.repo||'-'} · 分支: ${c.branch||'-'} · 文件: ${c.file_path||'-'} · 推送数: ${c.push_count}`}</div>
+    </div>`;
+  $('#pusher-status').innerHTML = `<div class="cards" style="margin:0">${card('Cloudflare DNS',cf,'cf')}${card('GitHub',gh,'gh')}</div>`;
+}
+
+// ===== 任务触发 =====
+async function triggerJob(type){
+  // 后台模式激活时禁止手动操作
+  if(window.__daemonActive === true){
+    toast('当前系统正处于后台运行状态，手动操作已禁用。请先关闭后台模式。', 'err');
+    return;
+  }
+  // 有任务运行时禁止触发新任务(防御性检查,按钮应已被禁用)
+  if(window.__jobRunning === true){
+    toast('当前有任务正在运行，请等待完成或点击"终止任务"', 'err');
+    return;
+  }
+  // 测速前验证 TCP 端口配置
+  if(type === 'benchmark' || type === 'push'){
+    // 确保 config 已加载（刷新后可能未加载）
+    if(!curConfig){
+      try{ curConfig = await api('/api/config'); }catch(e){}
+    }
+    const ports = (typeof selectedPorts !== 'undefined' && selectedPorts.length > 0) ? selectedPorts : (curConfig?.tcp_ping_ports || []);
+    if(!ports || ports.length === 0){
+      toast('请先在配置页面选择至少一个 TCP 端口', 'err');
+      switchTab('config');
+      return;
+    }
+  }
+  try{
+    const job = await api('/api/trigger/'+type,{method:'POST'});
+    toast(`${type==='benchmark'?'测速':'推送'}任务已启动: ${job.id}`);
+    switchTab('jobs');
+    pollJobs();
+  }catch(e){ toast(e.message,'err'); }
+}
+
+// ===== 终止任务 =====
+async function cancelJob(){
+  if(!window.__jobRunning){
+    toast('当前无运行中的任务', 'err');
+    return;
+  }
+  if(!await customConfirm('确定要终止当前运行的任务吗？\n\n已测速的部分结果将保留入库，但未完成的测速将被中止。')) return;
+  try{
+    const r = await api('/api/jobs/cancel', {method:'POST'});
+    toast(r.message || '任务终止请求已发送', 'ok');
+    // 终止后恢复至用户登录时的初始配置状态: 重新加载配置并刷新仪表板
+    try{ curConfig = await api('/api/config'); }catch(e){}
+    // 立即刷新任务列表(后端已将任务标记为 canceled, current() 返回 nil, 会触发解锁)
+    await loadJobs();
+    refreshDash();
+    // 确保轮询持续运行,直到 goroutine 完全退出
+    if(!jobPollTimer) pollJobs();
+  }catch(e){ toast(e.message, 'err'); }
+}
+
+// ===== 数据库清空/恢复 =====
+let restoreCountdownTimer = null;
+async function showClearDBConfirm(){
+  // 获取当前数据量
+  let dataCount = 0;
+  try{
+    const stats = await api('/api/stats');
+    dataCount = stats.total || 0;
+  }catch(e){}
+
+  // 第一次确认
+  const msg1 = `⚠ 警告：此操作将永久删除数据库中所有数据！\n\n` +
+    `当前数据量：${dataCount} 条\n\n` +
+    `执行后将自动创建备份文件，您有 5 分钟时间决定是否恢复。\n` +
+    `超过 5 分钟后备份将被保留，但无法通过系统恢复。\n\n` +
+    `确定要继续吗？`;
+  if(!await customConfirm(msg1)) return;
+
+  // 第二次确认
+  const msg2 = `再次确认：您正在清空 ${dataCount} 条测速数据！\n\n此操作不可撤销，是否最终确认？`;
+  if(!await customConfirm(msg2)) return;
+
+  await executeClearDB();
+}
+
+async function executeClearDB(){
+  const btn = $('#clear-db-btn');
+  if(btn){ btn.disabled = true; btn.innerHTML = '<span style="margin-right:4px">⏳</span>清空中...'; }
+  toast('正在备份并清空数据库...', 'ok');
+
+  try{
+    const r = await api('/api/database/clear',{
+      method:'POST',
+      body:JSON.stringify({confirm:true})
+    });
+    toast(`已清空 ${r.deleted} 条数据，5分钟内可恢复`, 'ok');
+    // 显示恢复面板
+    showRestorePanel(r.backup_path, r.restore_deadline_ts || r.restore_deadline, r.deleted);
+    refreshDash();
+  }catch(e){
+    toast('清空失败: ' + e.message, 'err');
+  }finally{
+    if(btn){ btn.disabled = false; btn.innerHTML = '<span style="margin-right:4px">⚠</span>清空数据库'; }
+  }
+}
+
+function showRestorePanel(backupPath, deadline, deletedCount){
+  const panel = $('#restore-panel');
+  if(!panel) return;
+  panel.style.display = 'block';
+
+  // 支持时间戳(秒)或 ISO 字符串
+  let deadlineTime;
+  if(typeof deadline === 'number'){
+    deadlineTime = deadline * 1000;
+  } else {
+    deadlineTime = new Date(String(deadline).replace(' ', 'T')).getTime();
+  }
+
+  function update(){
+    const remaining = deadlineTime - Date.now();
+    if(remaining <= 0){
+      panel.innerHTML = `<div style="color:var(--muted)">⏰ 恢复窗口已过期（已清空 ${deletedCount} 条）</div>`;
+      if(restoreCountdownTimer){ clearInterval(restoreCountdownTimer); restoreCountdownTimer = null; }
+      return;
+    }
+    const mins = Math.floor(remaining / 60000);
+    const secs = Math.floor((remaining % 60000) / 1000);
+    panel.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-weight:600;color:var(--warn)">⏳ 恢复窗口剩余: ${mins}分${secs.toString().padStart(2,'0')}秒</div>
+          <div class="hint" style="margin-top:4px">已清空 ${deletedCount} 条数据 | 备份: ${backupPath.split('/').pop()}</div>
+        </div>
+        <button class="ghost" onclick="restoreDB('${backupPath.replace(/'/g,"\\'")}')" style="border-color:var(--ok);color:var(--ok)">
+          ↩ 恢复数据
+        </button>
+      </div>`;
+  }
+  update();
+  if(restoreCountdownTimer){ clearInterval(restoreCountdownTimer); }
+  restoreCountdownTimer = setInterval(update, 1000);
+}
+
+async function restoreDB(backupPath){
+  if(!await customConfirm('确定要恢复数据吗？当前数据将被备份中的数据替换。')) return;
+  toast('正在恢复数据...', 'ok');
+  try{
+    const r = await api('/api/database/restore',{
+      method:'POST',
+      body:JSON.stringify({backup_path:backupPath})
+    });
+    toast(`恢复成功: ${r.restored} 条数据`, 'ok');
+    $('#restore-panel').style.display = 'none';
+    if(restoreCountdownTimer){ clearInterval(restoreCountdownTimer); restoreCountdownTimer = null; }
+    refreshDash();
+  }catch(e){
+    toast('恢复失败: ' + e.message, 'err');
+  }
+}
+
+async function loadBackups(){
+  const panel = $('#backups-panel');
+  if(!panel) return;
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  if(panel.style.display === 'none') return;
+
+  try{
+    const r = await api('/api/database/backups');
+    const backups = r.backups || [];
+    if(backups.length === 0){
+      panel.innerHTML = '<div class="hint">暂无备份文件</div>';
+      return;
+    }
+    panel.innerHTML = '<div class="hint" style="margin-bottom:8px">备份文件列表（仅5分钟内可恢复）：</div>' +
+      backups.map(b => {
+        const time = new Date(b.created_at).toLocaleString('zh-CN');
+        const sizeKB = (b.size/1024).toFixed(1);
+        const canRestore = b.restoreable;
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-size:13px">${b.path.split('/').pop()}</div>
+            <div class="hint">${time} | ${sizeKB} KB ${canRestore?'| <span style="color:var(--ok)">可恢复</span>':'| <span style="color:var(--muted)">已过期</span>'}</div>
+          </div>
+          <div>
+            ${canRestore?`<button class="ghost sm" style="border-color:var(--ok);color:var(--ok);margin-right:6px" onclick="restoreDB('${b.path.replace(/'/g,"\\'")}')">恢复</button>`:''}
+            <button class="ghost sm danger" onclick="deleteBackup('${b.path.replace(/'/g,"\\'")}')">删除</button>
+          </div>
+        </div>`;
+      }).join('');
+  }catch(e){
+    panel.innerHTML = '<div class="hint" style="color:var(--err)">加载失败: '+e.message+'</div>';
+  }
+}
+
+async function deleteBackup(path){
+  if(!await customConfirm('确定删除此备份文件？')) return;
+  try{
+    await api('/api/database/backups?path='+encodeURIComponent(path),{method:'DELETE'});
+    toast('备份已删除', 'ok');
+    loadBackups();
+  }catch(e){ toast(e.message,'err'); }
+}
+async function renderCurrentJob(){
+  try{
+    const j = await api('/api/jobs');
+    const cur = j.running;
+    const box = $('#dash-current-job');
+    if(!cur){ box.innerHTML='<span class="hint">当前无运行中的任务</span>'; return; }
+    box.innerHTML = renderJobHTML(cur);
+  }catch(e){}
+}
+let renderedJobs = new Map();
+function renderJobHTML(j){
+  const pct = j.total>0 ? (j.progress/j.total*100).toFixed(0) : 0;
+  const sm = {running:['warn','执行中'], completed:['ok','成功'], failed:['err','失败'], canceled:['','已取消']};
+  const [cls, txt] = sm[j.status] || ['','未知'];
+  return `<div class="head">
+    <div><b>${j.type==='benchmark'?'测速':'推送'}</b> · <span class="tag ${cls}">${txt}</span> · ${j.id}</div>
+    <span class="hint">${fmtTime(j.started_at)} → ${j.finished_at?fmtTime(j.finished_at):'进行中'}</span>
+  </div>
+  <div class="hint">${j.message||''}</div>
+  <div class="pbar"><i style="width:${pct}%"></i></div>
+  <div class="hint">${j.progress}/${j.total} (${pct}%)</div>
+  ${j.logs&&j.logs.length?`<pre>${j.logs.join('\n')}</pre>`:''}`;
+}
+function createJobElement(j){
+  const el = document.createElement('div');
+  el.className = `job job-${j.status}`;
+  el.dataset.jobId = j.id;
+  el.innerHTML = `<div class="head">
+    <div><b>${j.type==='benchmark'?'测速':'推送'}</b> · <span class="tag job-status">执行中</span> · ${j.id}</div>
+    <span class="hint job-time">${fmtTime(j.started_at)} → 进行中</span>
+  </div>
+  <div class="hint job-msg"></div>
+  <div class="pbar"><i class="job-pbar" style="width:0%"></i></div>
+  <div class="hint job-ptext">0/0 (0%)</div>
+  <pre class="job-logs" data-lines="0"></pre>`;
+  return el;
+}
+function updateJobElement(el, j){
+  if(!el) return;
+  // 确保元素结构完整（结构不匹配时重建内部HTML）
+  if(!el.querySelector('.job-status')){
+    el.innerHTML = `<div class="head">
+      <div><b>${j.type==='benchmark'?'测速':'推送'}</b> · <span class="tag job-status">执行中</span> · ${j.id}</div>
+      <span class="hint job-time">${fmtTime(j.started_at)} → 进行中</span>
+    </div>
+    <div class="hint job-msg"></div>
+    <div class="pbar"><i class="job-pbar" style="width:0%"></i></div>
+    <div class="hint job-ptext">0/0 (0%)</div>
+    <pre class="job-logs" data-lines="0"></pre>`;
+  }
+  const pct = j.total>0 ? (j.progress/j.total*100).toFixed(0) : 0;
+  const sm = {running:['warn','执行中'], completed:['ok','成功'], failed:['err','失败'], canceled:['','已取消']};
+  const [cls, txt] = sm[j.status] || ['','未知'];
+  el.className = `job job-${j.status}`;
+  const tag = el.querySelector('.job-status');
+  if(tag){ tag.className = `tag ${cls}`; tag.textContent = txt; }
+  const msg = el.querySelector('.job-msg');
+  if(msg) msg.textContent = j.message || '';
+  const pbar = el.querySelector('.job-pbar');
+  if(pbar) pbar.style.width = pct + '%';
+  const ptext = el.querySelector('.job-ptext');
+  if(ptext) ptext.textContent = `${j.progress}/${j.total} (${pct}%)`;
+  const time = el.querySelector('.job-time');
+  if(time) time.textContent = `${fmtTime(j.started_at)} → ${j.finished_at?fmtTime(j.finished_at):'进行中'}`;
+  const pre = el.querySelector('.job-logs');
+  if(pre){
+    const rendered = parseInt(pre.dataset.lines) || 0;
+    if(j.logs && j.logs.length > rendered){
+      const frag = document.createDocumentFragment();
+      j.logs.slice(rendered).forEach(line => {
+        frag.appendChild(document.createTextNode(line + '\n'));
+      });
+      pre.appendChild(frag);
+      pre.dataset.lines = j.logs.length;
+      if(j.status === 'running'){ pre.scrollTop = pre.scrollHeight; }
+    }
+  }
+}
+async function loadJobs(){
+  try{
+    const r = await api('/api/jobs');
+    // 同步 job 运行状态到按钮锁定机制
+    const wasRunning = window.__jobRunning === true;
+    window.__jobRunning = !!r.running;
+    if(wasRunning !== window.__jobRunning){
+      updateButtonStates();
+    }
+    const list = r.jobs||[];
+    const container = $('#jobs-list');
+    if(list.length === 0){
+      renderedJobs.clear();
+      if(!container.querySelector('.hint')) container.innerHTML = '<span class="hint">暂无任务记录</span>';
+      return;
+    }
+    const hint = container.querySelector('.hint');
+    if(hint) hint.remove();
+    const currentIds = new Set();
+    list.forEach(j => {
+      currentIds.add(j.id);
+      let el = renderedJobs.get(j.id);
+      if(!el){
+        el = createJobElement(j);
+        container.insertBefore(el, container.firstChild);
+        renderedJobs.set(j.id, el);
+      }
+      updateJobElement(el, j);
+    });
+    renderedJobs.forEach((el, id) => {
+      if(!currentIds.has(id)){ el.remove(); renderedJobs.delete(id); }
+    });
+  }catch(e){ toast(e.message,'err'); }
+}
+function pollJobs(){
+  if(jobPollTimer){ clearInterval(jobPollTimer); jobPollTimer = null; }
+  loadJobs();
+  jobPollTimer = setInterval(async()=>{
+    await loadJobs();
+    const r = await api('/api/jobs');
+    if(!r.running){
+      clearInterval(jobPollTimer);
+      jobPollTimer = null;  // 标记已停止,供 pollDaemonStatus 判断是否需要启动
+      refreshDash();
+    }
+  }, 2000);
+}
+
+// ===== 测速结果 =====
+async function loadResults(){
+  try{
+    const params = new URLSearchParams({
+      limit: resultPage.limit, offset: resultPage.offset,
+      country: $('#f-country').value,
+      sort: sortState.field, order: sortState.order
+    });
+    const r = await api('/api/results?'+params);
+    const rows = r.data||[];
+    const start = resultPage.offset;
+    $('#results-body').innerHTML = rows.map((d,i)=>{
+      const sc = d.score||0;
+      return `<tr>
+        <td>${start+i+1}</td>
+        <td><b>${d.ip}</b>:${d.port}</td>
+        <td>${d.country_code||'-'}</td>
+        <td>${d.isp||'-'}</td>
+        <td>${d.tcp_latency_ms.toFixed(0)} ms</td>
+        <td>${(d.tcp_loss_rate*100).toFixed(1)}%</td>
+        <td>${d.http_latency_ms.toFixed(0)} ms</td>
+        <td>${d.download_mbps.toFixed(1)} Mbps</td>
+        <td><span class="score-bar"><i style="width:${Math.min(sc,100).toFixed(0)}%"></i></span>${sc.toFixed(2)} <span class="grade-badge grade-${sc>=80?'a':sc>=60?'b':sc>=40?'c':'d'}">${sc>=80?'A':sc>=60?'B':sc>=40?'C':'D'}</span></td>
+        <td class="hint">${fmtTime(d.updated_at)}</td>
+        <td><button class="danger sm" onclick="delRow('${d.ip}',${d.port})">删</button></td>
+      </tr>`;
+    }).join('');
+    resultPage.total = r.total;
+    const from = r.total? start+1 : 0, to = start+rows.length;
+    $('#pg-info').textContent = `${from}-${to} / 共 ${r.total} 条`;
+    const cntEl = $('#ip-total-count');
+    if(cntEl) cntEl.textContent = `IP 总数: ${r.total}`;
+    // 加载维度（运营商列表+国家列表）
+    loadDimensions();
+  }catch(e){ toast(e.message,'err'); }
+}
+async function loadDimensions(){
+  try{
+    const d = await api('/api/dimensions');
+    // 国家下拉框（表头内）
+    const countrySel = $('#f-country');
+    const currentCountry = countrySel.value;
+    countrySel.innerHTML = `<option value="">全部</option>` + (d.countries||[]).map(v=>`<option value="${v}">${v}</option>`).join('');
+    countrySel.value = currentCountry;
+  }catch(e){}
+}
+function prevPage(){ if(resultPage.offset>0){ resultPage.offset-=resultPage.limit; loadResults(); } }
+function nextPage(){ if(resultPage.offset+resultPage.limit<resultPage.total){ resultPage.offset+=resultPage.limit; loadResults(); } }
+async function delRow(ip,port){
+  if(!await customConfirm(`删除 ${ip}:${port} ?`)) return;
+  try{ await api(`/api/results/${ip}/${port}`,{method:'DELETE'}); toast('已删除'); loadResults(); }catch(e){ toast(e.message,'err'); }
+}
+async function clearAll(){
+  if(!await customConfirm('清空全部测速结果？此操作不可恢复！')) return;
+  try{ const r=await api('/api/results',{method:'DELETE'}); toast('已清空 '+r.deleted+' 条'); loadResults(); }catch(e){ toast(e.message,'err'); }
+}
+async function exportTop(){
+  const btn = $('#btn-export-top');
+  const origText = btn ? btn.textContent : '';
+  try{
+    if(btn){ btn.disabled = true; btn.textContent = '导出中...'; }
+    toast('正在导出全部IP数据...', 'ok');
+    // 分页拉取全部数据
+    const pageSize = 500;
+    let offset = 0, allRows = [], total = 0;
+    do {
+      const params = new URLSearchParams({
+        limit: pageSize, offset,
+        country: $('#f-country').value,
+        sort: sortState.field, order: sortState.order
+      });
+      const r = await api('/api/results?'+params);
+      allRows = allRows.concat(r.data||[]);
+      total = r.total||0;
+      offset += pageSize;
+    } while(allRows.length < total);
+    if(allRows.length === 0){
+      toast('数据库中没有IP数据可导出', 'err');
+      return;
+    }
+    // 构建 CSV（UTF-8 BOM 确保 Excel 正确识别中文）
+    const headers = ['IP','端口','国家代码','运营商','TCP延迟(ms)','丢包率(%)','HTTP延迟(ms)','下载带宽(Mbps)','评分','评分等级','更新时间'];
+    const lines = [headers.join(',')];
+    for(const d of allRows){
+      const sc = d.score||0;
+      const grade = sc>=80?'A':sc>=60?'B':sc>=40?'C':'D';
+      const row = [
+        d.ip, d.port, d.country_code||'', d.isp||'',
+        d.tcp_latency_ms.toFixed(0),
+        (d.tcp_loss_rate*100).toFixed(1),
+        d.http_latency_ms.toFixed(0),
+        d.download_mbps.toFixed(1),
+        sc.toFixed(2),
+        grade,
+        new Date(d.updated_at).toLocaleString('zh-CN')
+      ].map(v => {
+        const s = String(v);
+        return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g,'""')}"` : s;
+      });
+      lines.push(row.join(','));
+    }
+    const csv = '\uFEFF' + lines.join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ip_database_${new Date().toISOString().slice(0,10)}_${allRows.length}rows.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+    toast(`导出成功：共 ${allRows.length} 条IP数据`, 'ok');
+  }catch(e){
+    toast('导出失败：'+e.message, 'err');
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = origText; }
+  }
+}
+
+// ===== 排序与筛选 =====
+function toggleSort(field){
+  if(sortState.field === field){
+    // 同一字段：切换方向
+    sortState.order = sortState.order === 'asc' ? 'desc' : 'asc';
+  } else {
+    // 新字段：首次点击为升序
+    sortState.field = field;
+    sortState.order = 'asc';
+  }
+  updateSortIndicators();
+  resultPage.offset = 0;
+  loadResults();
+}
+function updateSortIndicators(){
+  document.querySelectorAll('th.sortable').forEach(th => {
+    const f = th.dataset.sort;
+    const arrow = th.querySelector('.sort-arrow');
+    if(f === sortState.field){
+      th.classList.add('active');
+      if(arrow) arrow.textContent = sortState.order === 'asc' ? '▲' : '▼';
+    } else {
+      th.classList.remove('active');
+      if(arrow) arrow.textContent = '';
+    }
+  });
+}
+function onCountryFilter(){
+  resultPage.offset = 0;
+  loadResults();
+}
+function resetFilters(){
+  // 重置国家筛选
+  const countrySel = $('#f-country');
+  if(countrySel) countrySel.value = '';
+  // 重置排序为默认（评分降序）
+  sortState = {field:'score', order:'desc'};
+  updateSortIndicators();
+  // 重置分页
+  resultPage.offset = 0;
+  loadResults();
+  toast('已重置所有筛选和排序条件', 'ok');
+}
+
+// ===== 配置 =====
+let curConfig = null;
+async function loadConfig(){
+  try{
+    curConfig = await api('/api/config');
+    renderConfigForm(curConfig);
+  }catch(e){ toast(e.message,'err'); }
+}
+function field(label, key, type='text', opts={}){
+  let v = curConfig[key] ?? '';
+  if(Array.isArray(v)){
+    v = type==='textarea' ? v.join('\n') : v.join(',');
+  }
+  const opt = opts.placeholder?`placeholder="${opts.placeholder}"`:'';
+  const minMax = (opts.min!=null?`min="${opts.min}"`:'')+(opts.max!=null?` max="${opts.max}"`:'');
+  const hint = opts.hint?`<div class="hint">${opts.hint}</div>`:'';
+  const info = opts.info?`<i class="info-icon">ℹ<span class="info-tip">${opts.info}</span></i>`:'';
+  const lbl = `<label>${label}${info}</label>`;
+  if(type==='textarea'){
+    return `<div class="field ${opts.full?'full':''}">${lbl}<textarea id="cfg-${key}" rows="3">${v}</textarea>${hint}</div>`;
+  }
+  return `<div class="field ${opts.full?'full':''}">${lbl}<input id="cfg-${key}" type="${type}" value="${v}" ${opt} ${minMax}>${hint}</div>`;
+}
+function renderConfigForm(c){
+  const sec = (title, html) => `<div class="panel" style="margin:0 0 16px"><h3>${title}</h3><div class="form-grid">${html}</div></div>`;
+  let html = '';
+  html += sec('IP 来源',
+    `<div class="field"><label>启用官方地址</label><input id="cfg-ipv4_enabled" type="checkbox" ${c.ipv4_enabled?'checked':''}><span class="hint">关闭后仅拉取自定义地址</span></div>` +
+    field('官方拉取数量','ipv4_count','number',{hint:'从官方CIDR随机采样的IP总数，0=默认100'}) +
+    field('IPv4 URL','ipv4_url') + field('额外 IP URL(每行一个)','extra_ip_urls','textarea',{full:true}));
+  html += sec('IP 选择',
+    `<div class="field full"><label>国家代码</label>
+      <div class="country-selector">
+        <div class="country-presets">
+          <span class="hint" style="margin-right:4px">常用国家：</span>
+          <button type="button" class="country-toggle" data-country="JP" onclick="toggleCountry('JP')">JP</button>
+          <button type="button" class="country-toggle" data-country="SG" onclick="toggleCountry('SG')">SG</button>
+          <button type="button" class="country-toggle" data-country="KR" onclick="toggleCountry('KR')">KR</button>
+          <button type="button" class="country-toggle" data-country="HK" onclick="toggleCountry('HK')">HK</button>
+          <button type="button" class="country-toggle" data-country="US" onclick="toggleCountry('US')">US</button>
+          <button type="button" class="country-toggle" data-country="TW" onclick="toggleCountry('TW')">TW</button>
+          <button type="button" class="country-toggle" data-country="DE" onclick="toggleCountry('DE')">DE</button>
+          <button type="button" class="country-toggle" data-country="GB" onclick="toggleCountry('GB')">GB</button>
+          <button type="button" class="country-toggle" data-country="FR" onclick="toggleCountry('FR')">FR</button>
+          <button type="button" class="country-toggle" data-country="NL" onclick="toggleCountry('NL')">NL</button>
+        </div>
+        <div class="country-input-row">
+          <input type="text" id="country-custom-input" placeholder="自定义(2字母)" maxlength="2" style="text-transform:uppercase" onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomCountry()}">
+          <button type="button" class="sm" onclick="addCustomCountry()">添加</button>
+        </div>
+        <div class="country-tags" id="country-tags-container"></div>
+        <div class="hint" id="country-hint">手动/混合模式必填，点击上方按钮选择常用国家代码</div>
+      </div>
+    </div>` +
+    `<div class="field full"><label>选择模式</label>
+      <div style="display:flex;gap:16px;align-items:center;margin-top:4px;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px">
+          <input type="radio" name="ip_select_mode" id="cfg-ip_select_mode_auto" value="auto" ${curConfig.ip_select_mode!=='manual'&&curConfig.ip_select_mode!=='hybrid'?'checked':''}> 自动模式（按运营商）
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px">
+          <input type="radio" name="ip_select_mode" id="cfg-ip_select_mode_manual" value="manual" ${curConfig.ip_select_mode==='manual'?'checked':''}> 按国家代码
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px">
+          <input type="radio" name="ip_select_mode" id="cfg-ip_select_mode_hybrid" value="hybrid" ${curConfig.ip_select_mode==='hybrid'?'checked':''}> 混合模式（50%自动+50%手动）
+        </label>
+      </div>
+      <div class="hint" id="ip_mode_hint" style="margin-top:4px;padding:6px 10px;border-radius:4px;background:var(--panel2)"></div>
+    </div>` +
+    `<div class="field full"><label>纠错验证（cdn-cgi/trace）</label>
+      <input id="cfg-trace_verify_enable" type="checkbox" ${c.trace_verify_enable?'checked':''}>
+      <span class="hint">启用后对 xdb 初筛后的 IP 做 cdn-cgi/trace 精准验证，纠正国家归属误判。仅在手动/混合模式生效，会增加测速耗时（每个 IP 额外一次 HTTP 请求）</span>
+    </div>` +
+    field('Trace 端点','trace_endpoint',{full:true,hint:'Cloudflare trace 接口地址，通常无需修改'}) +
+    field('纠错并发数','trace_verify_concurrency','number',{min:1,max:50,hint:'范围 1-50，默认 10。纠错验证独立并发数，不同于测速并发。集中请求 Cloudflare trace 端点，过高可能触发限速，建议 5-15'}) +
+    field('Trace HTTP 超时','trace_http_timeout',{hint:'如 8s'}) + field('Trace 连接超时','trace_connect_timeout',{hint:'如 4s'}));
+  html += sec('测速参数',
+    field('并发数','concurrency','number',{min:1,max:200,hint:'范围 1-200，默认 50。过高可能触发 Cloudflare 或本地运营商限速/封禁，建议家庭宽带 ≤80、VPS ≤150'}) + field('TCP次数','tcp_ping_count','number') +
+    `<div class="field full"><label>TCP 测速端口</label>
+      <div class="port-selector">
+        <div class="port-presets">
+          <span class="hint" style="margin-right:4px">Cloudflare 常用端口：</span>
+          <button type="button" class="port-toggle" data-port="443" onclick="togglePort(443)">443</button>
+          <button type="button" class="port-toggle" data-port="2053" onclick="togglePort(2053)">2053</button>
+          <button type="button" class="port-toggle" data-port="2083" onclick="togglePort(2083)">2083</button>
+          <button type="button" class="port-toggle" data-port="2087" onclick="togglePort(2087)">2087</button>
+          <button type="button" class="port-toggle" data-port="2096" onclick="togglePort(2096)">2096</button>
+          <button type="button" class="port-toggle" data-port="8443" onclick="togglePort(8443)">8443</button>
+        </div>
+        <div class="port-input-row">
+          <input type="number" id="port-custom-input" placeholder="输入自定义端口(1-65535)" min="1" max="65535" onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomPort()}">
+          <button type="button" class="sm" onclick="addCustomPort()">添加端口</button>
+        </div>
+        <div class="port-tags" id="port-tags-container"></div>
+        <div class="hint" id="port-hint">至少选择一个 TCP 端口才能进行测速，系统将对每个选定端口独立测速</div>
+      </div>
+    </div>` + field('TCP超时','tcp_ping_timeout','text',{hint:'如 3s',info:'<div class="tip-row"><b>单位:</b> 时间字符串(如 3s, 500ms, 2s)</div><div class="tip-row"><b>推荐范围:</b> 1s-5s | <b>默认:</b> 3s</div><div class="tip-row"><b>影响:</b> 值越小→筛选越严格,只保留快速响应IP,但可能误杀高延迟稳定节点;值越大→筛选宽松,但预筛选阶段耗时增加</div><div class="tip-row"><b>特殊场景:</b> 跨国测海外IP建议3-5s;本地低延迟网络可设1-2s</div><div class="tip-row"><b>配置错误:</b> 0或空→引擎回退为3s;过大(>10s)→预筛选耗时显著增加</div>'}) +
+    field('HTTP次数','http_count','number') + field('HTTP超时','http_timeout','text',{hint:'如 5s',info:'<div class="tip-row"><b>单位:</b> 时间字符串(含连接+读取的总超时)</div><div class="tip-row"><b>推荐范围:</b> 3s-10s | <b>默认:</b> 5s</div><div class="tip-row"><b>影响:</b> 值越小→只保留极速响应IP,但可能导致大量IP超时失败;值越大→能测到更多IP,但单IP测速耗时增加</div><div class="tip-row"><b>特殊场景:</b> 测高延迟海外IP建议5-8s;追求低延迟优选建议3s</div><div class="tip-row"><b>配置错误:</b> 0或空→引擎回退为5s;过大→并发测速时可能堆积超时请求</div>'}) +
+    field('HTTP连接超时','http_connect_timeout','text',{hint:'0或空=使用HTTP超时',info:'<div class="tip-row"><b>单位:</b> 时间字符串(TCP/TLS握手阶段)</div><div class="tip-row"><b>推荐范围:</b> 1s-5s | <b>默认:</b> 0(回退到HTTP超时)</div><div class="tip-row"><b>影响:</b> 专门控制连接建立阶段,比HTTP超时更精细;设为0则与HTTP超时一致</div><div class="tip-row"><b>特殊场景:</b> 需区分连接慢和响应慢时单独设置,如连接2s+读取5s</div><div class="tip-row"><b>配置错误:</b> 0或负数→回退到http_timeout</div>'}) +
+    field('下载超时','dl_timeout','text',{hint:'如 8s',info:'<div class="tip-row"><b>单位:</b> 时间字符串(下载测速总超时)</div><div class="tip-row"><b>推荐范围:</b> 5s-30s | <b>默认:</b> 30s</div><div class="tip-row"><b>影响:</b> 值越小→只保留极速IP,但小文件可能未下载完就超时导致带宽为0;值越大→测速更准确但耗时增加</div><div class="tip-row"><b>特殊场景:</b> 下载大文件(10MB+)建议15-30s;小文件(2-5MB)可设5-10s</div><div class="tip-row"><b>配置错误:</b> 0或空→引擎回退为30s;过小→大量IP带宽测为0被淘汰</div>'}) + field('下载大小(MB)','dl_size_mb','number',{hint:'例如 5 表示下载 5MB 数据进行测速'}) +
+    field('下载连接超时','dl_connect_timeout','text',{hint:'0或空=使用下载超时',info:'<div class="tip-row"><b>单位:</b> 时间字符串(下载TCP/TLS握手)</div><div class="tip-row"><b>推荐范围:</b> 1s-5s | <b>默认:</b> 0(回退到下载超时)</div><div class="tip-row"><b>影响:</b> 控制下载连接建立阶段;设为0则与下载超时一致</div><div class="tip-row"><b>特殊场景:</b> 连接慢但下载快的IP可设较小值(如2s)快速过滤</div><div class="tip-row"><b>配置错误:</b> 0或负数→回退到dl_timeout</div>'}) +
+    field('下载读取超时','dl_read_timeout','text',{hint:'0或空=使用下载超时',info:'<div class="tip-row"><b>单位:</b> 时间字符串(数据传输阶段,不含连接)</div><div class="tip-row"><b>推荐范围:</b> 5s-30s | <b>默认:</b> 0(回退到下载超时)</div><div class="tip-row"><b>影响:</b> 控制数据读取阶段;设为0则与下载超时一致</div><div class="tip-row"><b>特殊场景:</b> 连接快但传输慢的IP可用较小值快速淘汰;大文件测速建议不小于下载超时</div><div class="tip-row"><b>配置错误:</b> 0或负数→回退到dl_timeout</div>'}) +
+    `<input type="hidden" id="cfg-http_target" value="${curConfig.http_target||''}"><input type="hidden" id="cfg-dl_target" value="${curConfig.dl_target||''}">` +
+    field('最大IP数','max_ips','number'));
+  html += sec('可用性检测',
+    `<div class="field full"><span class="hint">可用性检测模块已移除(对外部 API 依赖性强且对 Cloudflare 官方 IP 段过滤意义有限)。IP 质量过滤已由 TCP Ping + 入库硬规则 + IP 风险过滤三层机制保障。</span></div>`);
+  html += sec('重试策略',
+    field('失败重试次数','retry_count','number',{hint:'单节点测速失败时的重试次数,0=不重试'}) +
+    `<div class="field full"><label>批次降级重试</label>
+      <input id="cfg-retry_batch_fallback" type="checkbox" ${c.retry_batch_fallback?'checked':''}>
+      <span class="hint">当批次失败时降低并发重试,提高成功率(建议开启)</span>
+    </div>`);
+  html += sec('评分权重',
+    `<div class="field full"><label>权重配置</label>
+      <div class="hint" style="margin-bottom:8px">四项权重之和必须等于 1.0（当前总和: <span id="weight-sum" style="font-weight:700">—</span>）</div>
+      <div class="form-grid" style="grid-template-columns:1fr 1fr">
+        ${field('延迟权重','weight_latency','number',{hint:'0.0-1.0'})}
+        ${field('丢包权重','weight_loss','number',{hint:'0.0-1.0'})}
+        ${field('带宽权重','weight_bandwidth','number',{hint:'0.0-1.0'})}
+        ${field('抖动权重','weight_jitter','number',{hint:'0.0-1.0'})}
+      </div>
+      <div id="weight-warn" style="color:var(--err);font-size:12px;margin-top:6px;display:none">权重总和不等于 1.0，请调整后再保存</div>
+    </div>`);
+  html += sec('数据库',
+    field('最低评分阈值','min_score_threshold','number') + field('最大记录数','max_db_size','number') +
+    field('数据库路径','db_path',{hint:'变更需重启'}) + field('IP过期时间','ip_expire_time') + field('保留天数','data_retention','number'));
+  html += sec('IP入库硬性规则',
+    field('TCP延迟上限','rule_max_tcp_latency','number',{hint:'单位: 毫秒(ms)，超过此值的IP拒绝入库'}) +
+    field('丢包率上限','rule_max_loss_rate','number',{hint:'0.0~1.0，超过此值的IP拒绝入库（0表示不允许任何丢包）'}) +
+    field('HTTP延迟上限','rule_max_http_latency','number',{hint:'单位: 毫秒(ms)，超过此值的IP拒绝入库'}) +
+    field('最低下载带宽','rule_min_download_mbps','number',{hint:'单位: Mbps，低于此值的IP拒绝入库'}) +
+    `<div class="full"><div class="hint" style="padding:8px 12px;background:rgba(245,158,11,.1);border:1px solid var(--warn);border-radius:6px;color:var(--warn);font-size:12px">以上四项规则为IP入库的硬性条件，任一条件不满足的IP地址均禁止入库。修改后点击保存即可生效，无需重启。</div></div>`);
+  html += sec('Cloudflare 推送',
+    field('API Token','cf_api_key',{full:true}) + field('Zone ID','cf_zone_id') + field('DNS 名称','cf_dns_name') +
+    field('TTL','cf_dns_ttl','number') + field('选项','cf_dns_options') + field('推送数量','cf_push_count','number'));
+  html += sec('GitHub 推送',
+    field('Token','github_token',{full:true}) + field('仓库','github_repo') + field('文件路径','github_file_path') +
+    field('分支','github_branch') + field('推送数量','github_push_count','number'));
+  html += sec('WxPusher 微信通知',
+    `<div class="field full"><label>启用微信通知</label>
+      <input id="cfg-wxpusher_enable" type="checkbox" ${c.wxpusher_enable?'checked':''}>
+      <span class="hint">启用后,测速和推送结果通过 WxPusher 推送到微信</span>
+    </div>` +
+    field('应用 Token','wxpusher_app_token',{full:true,hint:'在 wxpusher.zjiecode.com 后台获取'}) +
+    field('Topic IDs(逗号分隔)','wxpusher_topic_ids',{hint:'如 123,456'}) +
+    field('UIDs(逗号分隔)','wxpusher_uids',{full:true,hint:'如 UID_abc,UID_def'}));
+  html += sec('IP 风险过滤',
+    `<div class="field full"><label>启用风险过滤</label>
+      <input id="cfg-ip_risk_filter_enable" type="checkbox" ${c.ip_risk_filter_enable?'checked':''}>
+      <span class="hint">启用后在 DNS 推送前过滤高风险 IP,避免推送被封禁的 IP</span>
+    </div>` +
+    field('风险分数阈值','ip_risk_score_threshold','number',{hint:'0-100,大于此值视为高风险并过滤,默认 70'}) +
+    field('风险查询超时','ip_risk_filter_timeout',{hint:'如 5s'}));
+  html += sec('自动定时运行参数',
+    field('采集时间(HH:MM)','collect_time') + field('定时间隔(分钟)','interval','number',{hint:'守护模式下定时测速间隔,0=仅按采集时间执行'}) +
+    field('推送间隔(小时)','push_interval','number') + field('输出前N个','top_n','number',{hint:'每线路评分后保留的最优IP数量,用于结果展示与CSV导出(推送数量另由推送设置控制)'}) +
+    field('日志文件','log_file',{hint:'变更需重启'}) +
+    `<div class="field full"><label>直连模式</label>
+      <input id="cfg-direct_mode_enable" type="checkbox" ${c.direct_mode_enable?'checked':''}>
+      <span class="hint">启用后强制禁用系统代理(HTTP_PROXY/HTTPS_PROXY等),确保测速直连。公司网络下若需通过代理访问,请关闭此项</span>
+    </div>` +
+    `<div class="field full"><label>后台模式</label>
+      <input id="cfg-daemon_mode" type="checkbox" ${c.daemon_mode?'checked':''} style="display:none">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
+        <button type="button" id="daemon-toggle-btn" class="sm" onclick="toggleDaemonMode()" style="min-width:120px">${c.daemon_mode?'停止定时任务':'启动定时任务'}</button>
+        <span id="daemon-status-badge" class="tag ${c.daemon_mode?'ok':''}" style="font-size:13px;padding:4px 12px">${c.daemon_mode?'● 运行中':'○ 已停止'}</span>
+        <span class="hint" id="daemon-next-times"></span>
+      </div>
+      <div style="padding:10px 12px;border-radius:6px;background:var(--panel2);border-left:3px solid var(--accent);line-height:1.7;font-size:12px;color:var(--muted)">
+        <div style="margin-bottom:4px"><b style="color:var(--text)">功能说明：</b>启用后以守护进程常驻后台，按 <code>collect_time</code> 每日定时自动采集测速，按 <code>push_interval</code> 定时自动推送最优 IP，全程无需人工干预。</div>
+        <div style="margin-bottom:4px"><b style="color:var(--text)">与单次模式区别：</b>单次模式执行完测速推送即退出；后台模式持续运行，到点自动触发，支持 Web 面板实时管理和手动触发。</div>
+        <div style="margin-bottom:4px"><b style="color:var(--text)">资源占用：</b>空闲时 CPU ≈ 0.1%、内存 ≈ 35MB；测速期间 CPU 短暂升至 30-50%（约 90 秒），结束自动回收。</div>
+        <div style="margin-bottom:4px"><b style="color:var(--text)">通知机制：</b>测速和推送结果通过日志记录；推送连续失败 3 次后触发 WxPusher 微信告警（需另行配置）。</div>
+        <div style="margin-bottom:4px"><b style="color:var(--text)">性能影响：</b>仅采集/推送时段消耗网络带宽，其余时间无额外开销，适合 7×24 小时长期运行。</div>
+        <div><b style="color:var(--text)">推荐场景：</b>家庭服务器、VPS、NAS 等需持续保持最优 Cloudflare IP 的环境。不推荐 512MB 以下内存设备。</div>
+      </div>
+    </div>`);
+  html += sec('Web Dashboard',
+    `<div class="field"><label>启用Web</label><input id="cfg-web_enable" type="checkbox" ${c.web_enable?'checked':''}></div>` +
+    field('监听地址','web_host') + field('监听端口','web_port','number') +
+    field('用户名','web_username') + field('密码','web_password') + field('会话有效期','web_session_ttl'));
+  $('#config-form').innerHTML = html;
+
+  // IP 选择模式动态交互
+  const modeHint = $('#ip_mode_hint');
+  const countriesSelector = $('.country-selector');
+  function updateModeHint(){
+    const mode = document.querySelector('input[name="ip_select_mode"]:checked')?.value || 'auto';
+    const hints = {
+      'auto': '当前: 自动模式 — 系统根据本机运营商线路自动选择最优 IP，无需填写国家代码',
+      'manual': '当前: 按国家代码模式 — 仅保留上方选择的国家/地区的 IP（必填）',
+      'hybrid': '当前: 混合模式 — 推送时 50% 来自上方指定国家，50% 来自自动选择（国家代码必填）'
+    };
+    modeHint.textContent = hints[mode] || '';
+    modeHint.style.color = mode === 'auto' ? 'var(--hint)' : 'var(--accent)';
+    if(countriesSelector){
+      countriesSelector.style.opacity = mode === 'auto' ? '0.5' : '1';
+      countriesSelector.style.pointerEvents = mode === 'auto' ? 'none' : 'auto';
+    }
+  }
+  document.querySelectorAll('input[name="ip_select_mode"]').forEach(r => r.addEventListener('change', updateModeHint));
+  updateModeHint();
+
+  // 初始化 TCP 端口选择器
+  initPortSelector(curConfig.tcp_ping_ports || []);
+  // 初始化国家代码选择器
+  initCountrySelector(curConfig.ip_select_countries || []);
+  // 初始化权重验证
+  ['weight_latency','weight_loss','weight_bandwidth','weight_jitter'].forEach(k => {
+    const el = $('#cfg-'+k);
+    if(el) el.addEventListener('input', validateWeightSum);
+  });
+  validateWeightSum();
+  // 初始化后台模式状态轮询
+  pollDaemonStatus();
+}
+function validateConcurrency(){
+  const el = $('#cfg-concurrency');
+  if(!el) return true;
+  const v = Number(el.value);
+  if(!v || v < 1 || v > 200){
+    toast('并发数范围: 1-200，当前: '+el.value, 'err');
+    el.focus();
+    return false;
+  }
+  if(v > 150){
+    toast('并发数 '+v+' 较高，可能触发网络限速', 'err');
+  }
+  return true;
+}
+function validateWeightSum(){
+  const keys = ['weight_latency','weight_loss','weight_bandwidth','weight_jitter'];
+  let sum = 0;
+  keys.forEach(k => { const el = $('#cfg-'+k); if(el) sum += Number(el.value) || 0; });
+  const sumEl = $('#weight-sum');
+  const warnEl = $('#weight-warn');
+  const valid = Math.abs(sum - 1.0) < 0.001;
+  if(sumEl){ sumEl.textContent = sum.toFixed(2); sumEl.style.color = valid ? 'var(--ok)' : 'var(--err)'; }
+  if(warnEl) warnEl.style.display = valid ? 'none' : 'block';
+  return valid;
+}
+
+// ===== 后台模式控制 =====
+let daemonPollTimer = null;
+async function toggleDaemonMode(){
+  const isStarting = !window.__daemonActive;
+  const msg = isStarting
+    ? '确认启动定时任务？启动后将按配置自动执行测速和推送。'
+    : '确认停止定时任务？停止后后台将不再自动执行测速和推送。';
+  if(!await customConfirm(msg)) return;
+  try{
+    const r = await api('/api/daemon/toggle',{method:'POST'});
+    // toggle 成功说明无 job 运行(否则后端会拒绝),故 jobRunning=false
+    updateDaemonStatusUI(r.active, r.next_collect, r.next_push, false);
+    toast(r.message, r.active?'ok':'err');
+  }catch(e){ toast(e.message,'err'); }
+}
+async function pollDaemonStatus(){
+  try{
+    const r = await api('/api/daemon/status');
+    updateDaemonStatusUI(r.active, r.next_collect, r.next_push, r.job_running);
+    // daemon 触发的测速任务感知:若检测到 job 运行中且 pollJobs 未启动,启动它以获取实时状态
+    if(r.job_running && !jobPollTimer){
+      pollJobs();
+    }
+  }catch(e){}
+  // 每 10 秒轮询一次
+  clearInterval(daemonPollTimer);
+  daemonPollTimer = setInterval(pollDaemonStatus, 10000);
+}
+function updateDaemonStatusUI(active, nextCollect, nextPush, jobRunning){
+  const btn = $('#daemon-toggle-btn');
+  const badge = $('#daemon-status-badge');
+  const times = $('#daemon-next-times');
+  const chk = $('#cfg-daemon_mode');
+  if(btn){
+    btn.textContent = active ? '停止定时任务' : '启动定时任务';
+    btn.style.background = active ? 'var(--err)' : 'var(--accent)';
+    btn.style.color = '#fff';
+  }
+  if(badge){
+    badge.className = `tag ${active?'ok':''}`;
+    badge.style.cssText = 'font-size:13px;padding:4px 12px';
+    badge.textContent = active ? '● 运行中' : '○ 已停止';
+  }
+  if(chk) chk.checked = active;
+  if(times){
+    let parts = [];
+    if(active){
+      if(nextCollect) parts.push('下次采集: ' + nextCollect);
+      if(nextPush) parts.push('下次推送: ' + nextPush);
+    }
+    times.textContent = parts.join(' | ');
+  }
+  // 记录状态,由 updateButtonStates 统一管理按钮
+  window.__daemonActive = active;
+  window.__jobRunning = !!jobRunning;
+  updateButtonStates();
+}
+
+// lockAllControlsExcept 锁定所有交互元素(指定元素除外)
+// 仅锁定当前未禁用的元素,并标记 data-task-locked 以便解锁时精确恢复
+// 注意: 确认对话框(#confirm-overlay)内的按钮始终跳过,保证 customConfirm 可用
+function lockAllControlsExcept(exceptEl){
+  unlockAllControls(); // 先清理之前的锁定状态
+  const confirmOverlay = $('#confirm-overlay');
+  document.querySelectorAll('button, input, select, textarea').forEach(el => {
+    if(el === exceptEl) return;
+    // 跳过确认对话框内的元素,确保 customConfirm 弹出时按钮可点击
+    if(confirmOverlay && confirmOverlay.contains(el)) return;
+    if(!el.disabled){
+      el.disabled = true;
+      el.setAttribute('data-task-locked', '1');
+    }
+  });
+  document.body.classList.add('task-running');
+}
+
+// unlockAllControls 解锁被 lockAllControlsExcept 锁定的元素
+function unlockAllControls(){
+  document.querySelectorAll('[data-task-locked]').forEach(el => {
+    el.disabled = false;
+    el.removeAttribute('data-task-locked');
+  });
+  document.body.classList.remove('task-running');
+}
+
+// updateButtonStates 统一管理按钮的可用性
+// 规则:
+//   - 有 job 运行时: 终止任务按钮可用, 其他所有交互元素禁用(灰显且不可点击/输入)
+//   - 空闲时: 终止任务按钮禁用, 解锁所有交互元素, 按 daemon 状态调整特定按钮
+function updateButtonStates(){
+  const daemonActive = window.__daemonActive === true;
+  const jobRunning = window.__jobRunning === true;
+
+  // 终止任务按钮: 仅在 job 运行时可用
+  const cancelBtn = $('#btn-cancel-job');
+  if(cancelBtn) cancelBtn.disabled = !jobRunning;
+
+  if(jobRunning){
+    // 任务运行时: 锁定所有交互元素(终止按钮除外)
+    lockAllControlsExcept(cancelBtn);
+  } else {
+    // 空闲时: 解锁所有交互元素
+    unlockAllControls();
+    // 清理 daemon 按钮残留样式
+    const daemonBtn = $('#daemon-toggle-btn');
+    if(daemonBtn){ daemonBtn.title = ''; daemonBtn.style.opacity = ''; daemonBtn.style.cursor = ''; }
+    // 按 daemon 状态调整特定按钮
+    const benchBtn = $('#btn-trigger-benchmark');
+    const pushBtn = $('#btn-trigger-push');
+    if(benchBtn) benchBtn.disabled = daemonActive;
+    if(pushBtn) pushBtn.disabled = daemonActive;
+    // daemon 激活提示条
+    const hint = $('#daemon-block-hint');
+    if(hint) hint.style.display = daemonActive ? 'block' : 'none';
+  }
+}
+
+// ===== TCP 端口选择器 =====
+let selectedPorts = [];
+function initPortSelector(ports){
+  selectedPorts = [...new Set(ports.map(Number))].sort((a,b)=>a-b);
+  renderPortTags();
+}
+function togglePort(port){
+  port = Number(port);
+  const idx = selectedPorts.indexOf(port);
+  if(idx >= 0){
+    selectedPorts.splice(idx, 1);
+  } else {
+    if(port < 1 || port > 65535){ toast('端口范围: 1-65535', 'err'); return; }
+    selectedPorts.push(port);
+    selectedPorts.sort((a,b)=>a-b);
+  }
+  renderPortTags();
+}
+function addCustomPort(){
+  const input = $('#port-custom-input');
+  const port = Number(input.value);
+  if(!port || port < 1 || port > 65535){ toast('请输入有效端口 (1-65535)', 'err'); return; }
+  if(selectedPorts.includes(port)){ toast('端口 ' + port + ' 已存在', 'err'); return; }
+  selectedPorts.push(port);
+  selectedPorts.sort((a,b)=>a-b);
+  input.value = '';
+  renderPortTags();
+}
+function removePort(port){
+  port = Number(port);
+  selectedPorts = selectedPorts.filter(p => p !== port);
+  renderPortTags();
+}
+function renderPortTags(){
+  const container = $('#port-tags-container');
+  if(!container) return;
+  if(selectedPorts.length === 0){
+    container.innerHTML = '<span class="port-empty">未选择任何端口（测速前必须至少选择一个）</span>';
+  } else {
+    container.innerHTML = selectedPorts.map(p =>
+      `<span class="port-tag">${p}<span class="rm" onclick="removePort(${p})">×</span></span>`
+    ).join('');
+  }
+  // 更新快捷按钮状态
+  document.querySelectorAll('.port-toggle').forEach(btn => {
+    const p = Number(btn.dataset.port);
+    btn.classList.toggle('active', selectedPorts.includes(p));
+  });
+  // 更新提示
+  const hint = $('#port-hint');
+  if(hint){
+    hint.style.color = selectedPorts.length === 0 ? 'var(--err)' : 'var(--muted)';
+  }
+}
+function getSelectedPorts(){ return [...selectedPorts]; }
+
+// ===== 国家代码选择器 =====
+let selectedCountries = [];
+function initCountrySelector(countries){
+  selectedCountries = [...new Set((countries||[]).map(c => String(c).toUpperCase().trim()))].filter(Boolean);
+  renderCountryTags();
+}
+function toggleCountry(code){
+  code = String(code).toUpperCase().trim();
+  const idx = selectedCountries.indexOf(code);
+  if(idx >= 0){
+    selectedCountries.splice(idx, 1);
+  } else {
+    if(code.length !== 2){ toast('国家代码需为2字母', 'err'); return; }
+    selectedCountries.push(code);
+  }
+  renderCountryTags();
+}
+function addCustomCountry(){
+  const input = $('#country-custom-input');
+  const code = input.value.toUpperCase().trim();
+  if(!code || code.length !== 2){ toast('请输入2字母国家代码', 'err'); return; }
+  if(selectedCountries.includes(code)){ toast('国家 ' + code + ' 已存在', 'err'); return; }
+  selectedCountries.push(code);
+  input.value = '';
+  renderCountryTags();
+}
+function removeCountry(code){
+  code = String(code).toUpperCase().trim();
+  selectedCountries = selectedCountries.filter(c => c !== code);
+  renderCountryTags();
+}
+function renderCountryTags(){
+  const container = $('#country-tags-container');
+  if(!container) return;
+  if(selectedCountries.length === 0){
+    container.innerHTML = '<span class="port-empty">未选择任何国家（自动模式可不选）</span>';
+  } else {
+    container.innerHTML = selectedCountries.map(c =>
+      `<span class="country-tag">${c}<span class="rm" onclick="removeCountry('${c}')">×</span></span>`
+    ).join('');
+  }
+  document.querySelectorAll('.country-toggle').forEach(btn => {
+    const c = btn.dataset.country;
+    btn.classList.toggle('active', selectedCountries.includes(c));
+  });
+}
+function getSelectedCountries(){ return [...selectedCountries]; }
+function collectConfig(){
+  const c = {...curConfig};
+  const get = k => { const el=$('#cfg-'+k); return el? el.value : c[k]; };
+  const getArr = (k, sep) => { const v=get(k); return v? v.split(sep).map(s=>s.trim()).filter(Boolean): []; };
+  const getNum = k => { const v=get(k); return v===''?0:Number(v); };
+  const getChk = k => { const el=$('#cfg-'+k); return el? el.checked : false; };
+
+  c.ipv4_enabled=getChk('ipv4_enabled');
+  c.ipv4_count=getNum('ipv4_count');
+  c.ipv4_url=get('ipv4_url');
+  c.extra_ip_urls=getArr('extra_ip_urls','\n');
+  c.ip_select_mode = document.querySelector('input[name="ip_select_mode"]:checked')?.value || 'auto'; c.ip_select_countries=getSelectedCountries();
+  c.concurrency=getNum('concurrency'); c.tcp_ping_count=getNum('tcp_ping_count');
+  c.tcp_ping_ports=getSelectedPorts();
+  c.tcp_ping_timeout=get('tcp_ping_timeout'); c.http_target=get('http_target');
+  c.http_count=getNum('http_count'); c.http_timeout=get('http_timeout');
+  c.http_connect_timeout=get('http_connect_timeout');
+  c.dl_target=get('dl_target'); c.dl_timeout=get('dl_timeout');
+  c.dl_connect_timeout=get('dl_connect_timeout'); c.dl_read_timeout=get('dl_read_timeout');
+  c.dl_size_mb=getNum('dl_size_mb'); c.max_ips=getNum('max_ips');
+  c.retry_count=getNum('retry_count'); c.retry_batch_fallback=getChk('retry_batch_fallback');
+  c.weight_latency=Number(get('weight_latency')); c.weight_loss=Number(get('weight_loss')); c.weight_bandwidth=Number(get('weight_bandwidth')); c.weight_jitter=Number(get('weight_jitter'));
+  c.min_score_threshold=Number(get('min_score_threshold')); c.max_db_size=getNum('max_db_size');
+  c.rule_max_tcp_latency=getNum('rule_max_tcp_latency'); c.rule_max_loss_rate=Number(get('rule_max_loss_rate'));
+  c.rule_max_http_latency=getNum('rule_max_http_latency'); c.rule_min_download_mbps=Number(get('rule_min_download_mbps'));
+  c.db_path=get('db_path'); c.ip_expire_time=get('ip_expire_time'); c.data_retention=getNum('data_retention');
+  c.cf_api_key=get('cf_api_key'); c.cf_zone_id=get('cf_zone_id'); c.cf_dns_name=get('cf_dns_name');
+  c.cf_dns_ttl=getNum('cf_dns_ttl'); c.cf_dns_options=get('cf_dns_options'); c.cf_push_count=getNum('cf_push_count');
+  c.github_token=get('github_token'); c.github_repo=get('github_repo'); c.github_file_path=get('github_file_path');
+  c.github_branch=get('github_branch'); c.github_push_count=getNum('github_push_count');
+  // WxPusher 字段:topic_ids 是 int 数组,UIDs 是 string 数组,前端以逗号分隔字符串编辑
+  c.wxpusher_enable=getChk('wxpusher_enable'); c.wxpusher_app_token=get('wxpusher_app_token');
+  c.wxpusher_topic_ids=getArr('wxpusher_topic_ids',',').map(s=>parseInt(s,10)).filter(n=>!isNaN(n));
+  c.wxpusher_uids=getArr('wxpusher_uids',',');
+  c.ip_risk_filter_enable=getChk('ip_risk_filter_enable');
+  c.trace_verify_enable=getChk('trace_verify_enable');
+  c.trace_verify_concurrency=getNum('trace_verify_concurrency'); c.trace_endpoint=get('trace_endpoint'); c.trace_http_timeout=get('trace_http_timeout'); c.trace_connect_timeout=get('trace_connect_timeout');
+  c.ip_risk_score_threshold=getNum('ip_risk_score_threshold'); c.ip_risk_filter_timeout=get('ip_risk_filter_timeout');
+  c.direct_mode_enable=getChk('direct_mode_enable');
+  c.top_n=getNum('top_n');
+  c.collect_time=get('collect_time'); c.interval=getNum('interval'); c.push_interval=getNum('push_interval');
+  c.log_file=get('log_file'); c.ip_db_path=get('ip_db_path'); c.daemon_mode=getChk('daemon_mode');
+  c.web_enable=getChk('web_enable'); c.web_host=get('web_host'); c.web_port=getNum('web_port');
+  c.web_username=get('web_username'); c.web_password=get('web_password'); c.web_session_ttl=get('web_session_ttl');
+  return c;
+}
+async function testConfig(){
+  if(getSelectedPorts().length === 0){ toast('至少选择一个 TCP 端口', 'err'); return; }
+  if(!validateConcurrency()){ return; }
+  try{
+    const r = await api('/api/config/test',{method:'POST',body:JSON.stringify(collectConfig())});
+    toast(r.valid?'校验通过':'校验失败: '+(r.error||''), r.valid?'ok':'err');
+  }catch(e){ toast(e.message,'err'); }
+}
+async function saveConfig(){
+  if(getSelectedPorts().length === 0){ toast('至少选择一个 TCP 端口才能保存', 'err'); return; }
+  if(!validateWeightSum()){ toast('四项权重之和必须等于 1.0', 'err'); return; }
+  if(!validateConcurrency()){ return; }
+  if(!await customConfirm('保存配置？将覆盖 config.yaml（注释会丢失，原始版本备份为 .bak）')) return;
+  try{
+    const r = await api('/api/config',{method:'PUT',body:JSON.stringify(collectConfig())});
+    curConfig = r.config;
+    let msg = '配置已保存';
+    if(r.warnings&&r.warnings.length) msg += '（'+r.warnings.join('；')+'）';
+    toast(msg, r.warnings&&r.warnings.length?'err':'ok');
+  }catch(e){ toast(e.message,'err'); }
+}
+
+// ===== 系统重启 =====
+async function restartSystem(){
+  if(!await customConfirm('确定重启系统吗？当前所有任务将被中断。')) return;
+  const btn = $('#restart-btn');
+  const statusBox = $('#restart-status');
+  btn.disabled = true;
+  statusBox.style.display = 'block';
+  statusBox.innerHTML = '🔄 正在重启系统...';
+
+  try{
+    // 1. 调用重启 API（会立即返回，然后后台重启）
+    const r = await api('/api/system/restart',{method:'POST'});
+    if(!r.ok) throw new Error(r.message||'重启请求失败');
+    statusBox.innerHTML = '🔄 重启请求已发送，正在等待服务恢复...';
+  }catch(e){
+    // 重启时服务可能主动关闭，导致连接错误——这是预期行为
+    // 只有明确的 HTTP 错误（如 401）才是真正的失败
+    if(e.message && e.message.includes('未登录')){
+      btn.disabled = false;
+      statusBox.innerHTML = '<span style="color:var(--err)">重启失败: 未登录，请重新登录</span>';
+      toast('请重新登录','err');
+      return;
+    }
+    // 否则继续轮询，因为服务可能正在重启中
+    statusBox.innerHTML = '🔄 服务正在重启中，正在等待恢复...';
+  }
+
+  // 2. 轮询健康检查（指数退避，最多 30 秒）
+  const delays = [1000, 2000, 4000, 8000, 8000, 7000]; // 累计 30 秒
+  let recovered = false;
+  for(let i = 0; i < delays.length; i++){
+    await sleep(delays[i]);
+    statusBox.innerHTML = `🔄 等待服务恢复... (${i+1}/${delays.length})`;
+    try{
+      const h = await fetch('/api/health',{signal:AbortSignal.timeout(2000)});
+      if(h.ok){
+        recovered = true;
+        break;
+      }
+    }catch(e){
+      // 服务尚未恢复，继续等待
+    }
+  }
+
+  // 3. 根据结果显示状态
+  btn.disabled = false;
+  if(recovered){
+    statusBox.innerHTML = '<span style="color:var(--ok)">✅ 系统重启成功，运行正常</span>';
+    toast('系统重启成功，运行正常','ok');
+    // 4. 重新登录（新进程会丢失会话）
+    try{
+      // 尝试用保存的凭据重新登录
+      const savedUser = localStorage.getItem('cf_user') || 'admin';
+      const savedPass = localStorage.getItem('cf_pass') || 'admin';
+      await api('/api/login',{method:'POST',body:JSON.stringify({username:savedUser,password:savedPass})});
+      toast('已重新登录','ok');
+      // 刷新配置
+      loadConfig();
+      // 刷新统计
+      refreshDash();
+    }catch(e){
+      statusBox.innerHTML = '<span style="color:var(--warn)">⚠️ 系统已重启，但需要重新登录</span>';
+      showLogin();
+    }
+  }else{
+    statusBox.innerHTML = '<span style="color:var(--err)">❌ 重启超时，服务未能恢复。请手动检查进程状态</span>';
+    toast('系统重启超时','err');
+  }
+}
+
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// ===== 日志 =====
+async function loadLogs(){
+  try{
+    const lines = $('#log-lines').value;
+    const r = await api('/api/logs?lines='+lines);
+    $('#log-box').textContent = (r.lines||[]).join('\n');
+    $('#log-box').scrollTop = $('#log-box').scrollHeight;
+  }catch(e){ toast(e.message,'err'); }
+}
+
+// ===== 工具 =====
+function fmtTime(s){ if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return s; return d.toLocaleString('zh-CN',{hour12:false}); }
+function fmtUptime(sec){
+  if(!sec) return '-';
+  const d=Math.floor(sec/86400), h=Math.floor(sec%86400/3600), m=Math.floor(sec%3600/60);
+  return (d?d+'天 ':'')+h+'时'+m+'分';
+}
+
+// ===== 初始化 =====
+$('#li-btn').addEventListener('click', doLogin);
+$('#li-pass').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+$('#logout-btn').addEventListener('click', doLogout);
+checkAuth();
+</script>
+</body>
+</html>

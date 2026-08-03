@@ -1,0 +1,58 @@
+# ===== 敏感配置（包含 token / 密码 / API key，绝不入库） =====
+# 仅忽略根目录的 config.yaml（含真实凭据）；dist/windows/config.yaml 已脱敏可入库
+/config.yaml
+/config.yaml.bak
+/config.yaml.bak.*
+
+# ===== 编译产物（仅忽略根目录，dist/ 分发包正常入库） =====
+/cf-speedtest
+/cf-speedtest.exe
+/cf-speedtest-windows-*.exe
+/output/bin/
+/bin/
+
+# ===== 运行时日志 =====
+*.log
+*.log.*
+cf-speedtest.log*
+watchdog.log
+
+# ===== 数据库与备份 =====
+*.db
+*.db.bak.*
+*.db-journal
+*.db-wal
+*.db-shm
+backups/
+*.bak
+
+# ===== 运行时生成的产物 =====
+result.csv
+IP.txt
+cidr_stats.json
+geo_corrections.txt
+
+# ===== windows-dist 下的二进制与重复大文件（仅保留文本文件作为参考） =====
+windows-dist/cf-speedtest.exe
+windows-dist/ip2region.xdb
+
+# ===== Go 工具链 =====
+vendor/
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# ===== IDE / 编辑器 =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ===== 操作系统 =====
+.DS_Store
+ehthumbs.db
+Desktop.ini

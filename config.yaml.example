@@ -1,0 +1,146 @@
+# cf-speedtest 配置文件模板
+#
+# 使用方法：
+#   1. 复制本文件为 config.yaml：cp config.yaml.example config.yaml
+#   2. 根据实际需求修改各项参数
+#   3. 首次运行若 config.yaml 不存在，程序会自动生成默认配置
+#
+# 详细参数说明请参考 README.md
+
+# ===== IP 段来源 =====
+ipv4_url: https://www.cloudflare.com/ips-v4
+ipv4_enabled: true
+ipv4_count: 1000
+# 自定义 IP 采集地址（可选，留空则只使用官方 CF IP 段）
+extra_ip_urls:
+    - https://your-custom-ip-list-1.txt
+    - https://your-custom-ip-list-2.txt
+
+# ===== IP 选择模式 =====
+# auto(自动按运营商) / manual(手动按国家) / hybrid(混合各50%)
+ip_select_mode: auto
+ip_select_countries: []
+
+# ===== 测速参数 =====
+concurrency: 50
+tcp_ping_count: 4
+tcp_ping_ports:
+    - 443
+    - 2053
+    - 2083
+    - 2087
+    - 2096
+    - 8443
+tcp_ping_timeout: 3s
+http_target: https://speed.cloudflare.com/__down
+http_count: 3
+http_timeout: 5s
+http_connect_timeout: 0s
+dl_target: https://speed.cloudflare.com/__down
+dl_timeout: 8s
+dl_connect_timeout: 0s
+dl_read_timeout: 0s
+dl_size: 5242880
+max_ips: 2000
+
+# ===== 重试策略 =====
+retry_count: 1
+retry_batch_fallback: true
+
+# ===== 评分权重（总和应为 1.0） =====
+weight_latency: 0.35
+weight_loss: 0.25
+weight_bandwidth: 0.30
+weight_jitter: 0.10
+
+# ===== 数据库存储 =====
+min_score_threshold: 50
+max_db_size: 1000
+
+# ===== IP 入库硬性规则（任一不满足则不入库） =====
+rule_max_tcp_latency: 1000
+rule_max_loss_rate: 0
+rule_max_http_latency: 2000
+rule_min_download_mbps: 0.1
+
+# ===== Cloudflare DNS 推送（无需可留空） =====
+cf_api_key: ""
+cf_zone_id: ""
+cf_dns_name: ""
+cf_dns_ttl: 300
+cf_dns_options: proxied=false
+cf_push_count: 0
+
+# ===== GitHub 推送（无需可留空） =====
+github_token: ""
+github_repo: ""
+github_file_path: IP.txt
+github_branch: main
+github_push_count: 0
+
+# ===== WxPusher 微信通知（可选） =====
+wxpusher_enable: false
+wxpusher_app_token: ""
+wxpusher_topic_ids: []
+wxpusher_uids: []
+
+# ===== IP 风险等级过滤（可选） =====
+ip_risk_filter_enable: false
+ip_risk_score_threshold: 70
+ip_risk_filter_timeout: 5s
+
+# ===== 直连模式（启用后强制禁用系统代理） =====
+direct_mode_enable: false
+
+# ===== 输出 =====
+top_n: 100
+
+# ===== 运行模式 =====
+daemon_mode: false
+ip_db_path: ip2region.xdb
+log_file: cf-speedtest.log
+interval: 60
+collect_time: "06:00"
+push_interval: 6
+db_path: speedtest.db
+ip_expire_time: 24h0m0s
+data_retention: 30
+
+# ===== 归属地验证（trace 验证失败的 IP 会从任务列表删除） =====
+trace_verify_enable: true
+trace_verify_concurrency: 10
+trace_endpoint: https://www.cloudflare.com/cdn-cgi/trace
+trace_http_timeout: 8s
+trace_connect_timeout: 4s
+geo_corrections_path: geo_corrections.txt
+cidr_stats_path: cidr_stats.json
+
+# ===== Web Dashboard =====
+web_enable: true
+web_host: 0.0.0.0
+web_port: 8080
+web_username: admin
+web_password: admin
+web_session_ttl: 12h0m0s
+
+# ===== 资源清理机制 =====
+cleanup:
+    enable: true
+    strategies:
+        benchmark:
+            gc: true
+            temp_files: true
+            processes: true
+            db_vacuum: false
+            verify: true
+        push:
+            gc: true
+            temp_files: true
+            processes: true
+            db_vacuum: true
+            verify: true
+    temp_files: []
+    temp_patterns: []
+    process_timeout: 5s
+    verify_resources: true
+    memory_threshold: 0.9
