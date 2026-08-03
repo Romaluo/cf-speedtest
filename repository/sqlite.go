@@ -420,7 +420,35 @@ func (db *DB) BackupDB(backupDir string) (string, int64, error) {
 	return backupPath, count, nil
 }
 
-// ClearAllData 清空所有测速数据，返回删除的行数
+// AutoBackup 自动备份（覆盖式，只保留最近一份）
+// 用于测速入库前自动保存当前数据库状态，文件名固定为 speedtest_auto_backup.db
+func (db *DB) AutoBackup(backupDir string) (string, int64, error) {
+	if err := os.MkdirAll(backupDir, 0755); err != nil {
+		return "", 0, fmt.Errorf("创建备份目录失败: %w", err)
+	}
+	if _, err := db.conn.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		return "", 0, fmt.Errorf("WAL checkpoint 失败: %w", err)
+	}
+	count, _ := db.Count()
+	// 固定文件名，覆盖旧备份（只保留最近一份）
+	backupPath := filepath.Join(backupDir, "speedtest_auto_backup.db")
+	src, err := os.Open(db.dbPath)
+	if err != nil {
+		return "", 0, fmt.Errorf("打开数据库文件失败: %w", err)
+	}
+	defer src.Close()
+	dst, err := os.Create(backupPath)
+	if err != nil {
+		return "", 0, fmt.Errorf("创建备份文件失败: %w", err)
+	}
+	defer dst.Close()
+	if _, err := io.Copy(dst, src); err != nil {
+		return "", 0, fmt.Errorf("复制数据库文件失败: %w", err)
+	}
+	return backupPath, count, nil
+}
+
+// ClearAllData 清空所有数据，返回删除的行数
 func (db *DB) ClearAllData() (int64, error) {
 	// 获取当前记录数
 	var count int64
@@ -494,8 +522,8 @@ func (db *DB) ListBackups(backupDir string) ([]BackupInfo, error) {
 			continue
 		}
 		name := entry.Name()
-		// 只匹配备份文件
-		if len(name) < 20 || name[:18] != "speedtest_backup_" || filepath.Ext(name) != ".db" {
+		// 只匹配备份文件（手动/清空前: speedtest_backup_*.db，自动: speedtest_auto_backup.db）
+		if (!strings.HasPrefix(name, "speedtest_backup_") && name != "speedtest_auto_backup.db") || filepath.Ext(name) != ".db" {
 			continue
 		}
 

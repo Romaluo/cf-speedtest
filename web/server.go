@@ -130,6 +130,7 @@ func (srv *Server) routes() http.Handler {
 
 	// 数据库管理（清空/备份/恢复）
 	mux.HandleFunc("POST /api/database/clear", auth(srv.clearDatabaseHandler))
+	mux.HandleFunc("POST /api/database/backup", auth(srv.backupDatabaseHandler))
 	mux.HandleFunc("POST /api/database/restore", auth(srv.restoreDatabaseHandler))
 	mux.HandleFunc("GET /api/database/backups", auth(srv.listBackupsHandler))
 	mux.HandleFunc("DELETE /api/database/backups", auth(srv.deleteBackupHandler))

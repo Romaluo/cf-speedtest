@@ -158,8 +158,8 @@
   <div class="login-box">
     <h1>CF-Speedtest <span>Dashboard</span></h1>
     <p>Cloudflare IP 测速管理控制台</p>
-    <div class="field"><label>用户名</label><input id="li-user" placeholder="admin" autofocus></div>
-    <div class="field"><label>密码</label><input id="li-pass" type="password" placeholder="admin"></div>
+    <div class="field"><label>用户名</label><input id="li-user" placeholder="admin" autocomplete="off" autofocus></div>
+    <div class="field"><label>密码</label><input id="li-pass" type="password" placeholder="admin" autocomplete="new-password"></div>
     <button id="li-btn" style="width:100%">登录</button>
     <div class="err" id="li-err"></div>
   </div>
@@ -204,13 +204,14 @@
       <div class="panel" style="border-color:var(--err)">
         <h3 style="color:var(--err)">危险操作
           <span>
+            <button class="ghost sm" onclick="manualBackup()" id="backup-btn">手动备份</button>
             <button class="ghost sm" onclick="loadBackups()">查看备份</button>
             <button class="danger" onclick="showClearDBConfirm()" id="clear-db-btn">
               <span style="margin-right:4px">⚠</span>清空数据库
             </button>
           </span>
         </h3>
-        <div class="hint" style="color:var(--err)">此操作将永久删除数据库中所有数据。执行前会自动创建备份，5分钟内可恢复。</div>
+        <div class="hint" style="color:var(--err)">此操作将永久删除数据库中所有数据。执行前会自动创建备份，可随时从备份列表恢复。</div>
         <div id="restore-panel" style="display:none;margin-top:12px;padding:12px;background:rgba(245,158,11,.1);border:1px solid var(--warn);border-radius:6px"></div>
         <div id="backups-panel" style="display:none;margin-top:12px"></div>
       </div>
@@ -541,8 +542,7 @@ async function showClearDBConfirm(){
   // 第一次确认
   const msg1 = `⚠ 警告：此操作将永久删除数据库中所有数据！\n\n` +
     `当前数据量：${dataCount} 条\n\n` +
-    `执行后将自动创建备份文件，您有 5 分钟时间决定是否恢复。\n` +
-    `超过 5 分钟后备份将被保留，但无法通过系统恢复。\n\n` +
+    `执行后将自动创建备份文件，可随时从备份列表恢复。\n\n` +
     `确定要继续吗？`;
   if(!await customConfirm(msg1)) return;
 
@@ -563,9 +563,9 @@ async function executeClearDB(){
       method:'POST',
       body:JSON.stringify({confirm:true})
     });
-    toast(`已清空 ${r.deleted} 条数据，5分钟内可恢复`, 'ok');
+    toast(`已清空 ${r.deleted} 条数据，可随时从备份恢复`, 'ok');
     // 显示恢复面板
-    showRestorePanel(r.backup_path, r.restore_deadline_ts || r.restore_deadline, r.deleted);
+    showRestorePanel(r.backup_path, r.deleted);
     refreshDash();
   }catch(e){
     toast('清空失败: ' + e.message, 'err');
@@ -574,42 +574,20 @@ async function executeClearDB(){
   }
 }
 
-function showRestorePanel(backupPath, deadline, deletedCount){
+function showRestorePanel(backupPath, deletedCount){
   const panel = $('#restore-panel');
   if(!panel) return;
   panel.style.display = 'block';
-
-  // 支持时间戳(秒)或 ISO 字符串
-  let deadlineTime;
-  if(typeof deadline === 'number'){
-    deadlineTime = deadline * 1000;
-  } else {
-    deadlineTime = new Date(String(deadline).replace(' ', 'T')).getTime();
-  }
-
-  function update(){
-    const remaining = deadlineTime - Date.now();
-    if(remaining <= 0){
-      panel.innerHTML = `<div style="color:var(--muted)">⏰ 恢复窗口已过期（已清空 ${deletedCount} 条）</div>`;
-      if(restoreCountdownTimer){ clearInterval(restoreCountdownTimer); restoreCountdownTimer = null; }
-      return;
-    }
-    const mins = Math.floor(remaining / 60000);
-    const secs = Math.floor((remaining % 60000) / 1000);
-    panel.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
-        <div>
-          <div style="font-weight:600;color:var(--warn)">⏳ 恢复窗口剩余: ${mins}分${secs.toString().padStart(2,'0')}秒</div>
-          <div class="hint" style="margin-top:4px">已清空 ${deletedCount} 条数据 | 备份: ${backupPath.split('/').pop()}</div>
-        </div>
-        <button class="ghost" onclick="restoreDB('${backupPath.replace(/'/g,"\\'")}')" style="border-color:var(--ok);color:var(--ok)">
-          ↩ 恢复数据
-        </button>
-      </div>`;
-  }
-  update();
-  if(restoreCountdownTimer){ clearInterval(restoreCountdownTimer); }
-  restoreCountdownTimer = setInterval(update, 1000);
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-weight:600;color:var(--warn)">已清空 ${deletedCount} 条数据</div>
+        <div class="hint" style="margin-top:4px">备份: ${backupPath.split('/').pop()}（永久保存，随时可恢复）</div>
+      </div>
+      <button class="ghost" onclick="restoreDB('${backupPath.replace(/'/g,"\\'")}')" style="border-color:var(--ok);color:var(--ok)">
+        ↩ 恢复数据
+      </button>
+    </div>`;
 }
 
 async function restoreDB(backupPath){
@@ -629,6 +607,21 @@ async function restoreDB(backupPath){
   }
 }
 
+async function manualBackup(){
+  const btn = $('#backup-btn');
+  if(btn){ btn.disabled = true; btn.textContent = '备份中...'; }
+  toast('正在创建备份...', 'ok');
+  try{
+    const r = await api('/api/database/backup',{method:'POST'});
+    toast(`备份成功: ${r.backup_count} 条记录`, 'ok');
+    loadBackups();
+  }catch(e){
+    toast('备份失败: ' + e.message, 'err');
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = '手动备份'; }
+  }
+}
+
 async function loadBackups(){
   const panel = $('#backups-panel');
   if(!panel) return;
@@ -642,18 +635,18 @@ async function loadBackups(){
       panel.innerHTML = '<div class="hint">暂无备份文件</div>';
       return;
     }
-    panel.innerHTML = '<div class="hint" style="margin-bottom:8px">备份文件列表（仅5分钟内可恢复）：</div>' +
+    panel.innerHTML = '<div class="hint" style="margin-bottom:8px">备份文件列表（永久保存，随时可恢复）：</div>' +
       backups.map(b => {
         const time = new Date(b.created_at).toLocaleString('zh-CN');
         const sizeKB = (b.size/1024).toFixed(1);
-        const canRestore = b.restoreable;
+        const typeLabel = b.type === 'auto' ? '<span style="color:var(--warn)">自动备份</span>' : '<span style="color:var(--muted)">手动备份</span>';
         return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
           <div>
-            <div style="font-size:13px">${b.path.split('/').pop()}</div>
-            <div class="hint">${time} | ${sizeKB} KB ${canRestore?'| <span style="color:var(--ok)">可恢复</span>':'| <span style="color:var(--muted)">已过期</span>'}</div>
+            <div style="font-size:13px">${b.path.split('/').pop()} ${typeLabel}</div>
+            <div class="hint">${time} | ${sizeKB} KB | <span style="color:var(--ok)">可恢复</span></div>
           </div>
           <div>
-            ${canRestore?`<button class="ghost sm" style="border-color:var(--ok);color:var(--ok);margin-right:6px" onclick="restoreDB('${b.path.replace(/'/g,"\\'")}')">恢复</button>`:''}
+            <button class="ghost sm" style="border-color:var(--ok);color:var(--ok);margin-right:6px" onclick="restoreDB('${b.path.replace(/'/g,"\\'")}')">恢复</button>
             <button class="ghost sm danger" onclick="deleteBackup('${b.path.replace(/'/g,"\\'")}')">删除</button>
           </div>
         </div>`;

@@ -425,6 +425,16 @@ func (srv *Server) runBenchmark(job *Job) {
 	}
 	job.setMessage("测速中: 0/%d", len(tasks))
 
+	// 自动备份当前数据库（覆盖式，只保留最近一份）
+	if cnt, _ := db.Count(); cnt > 0 {
+		if _, _, err := db.AutoBackup(srv.backupDir()); err == nil {
+			job.addLog("自动备份完成（覆盖式，保留最近一份）")
+			srv.deps.Logger.Info("DB", "测速前自动备份完成")
+		} else {
+			srv.deps.Logger.Error("DB", "测速前自动备份失败: %v", err)
+		}
+	}
+
 	bench := engine.NewBenchmarkEngine(cfg, srv.deps.Resolver)
 	resultCh := bench.Run(tasks)
 

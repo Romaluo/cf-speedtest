@@ -25,6 +25,27 @@ func (srv *Server) getCurrentUser(r *http.Request) string {
 	return "unknown"
 }
 
+// backupDatabaseHandler POST /api/database/backup
+// 手动创建数据库备份
+func (srv *Server) backupDatabaseHandler(w http.ResponseWriter, r *http.Request) {
+	user := srv.getCurrentUser(r)
+	srv.deps.Logger.Info("DB", "用户 %s 发起手动备份", user)
+	backupPath, backupCount, err := srv.deps.DB.BackupDB(srv.backupDir())
+	if err != nil {
+		srv.deps.Logger.Error("DB", "手动备份失败: %v", err)
+		writeError(w, http.StatusInternalServerError, "备份失败: "+err.Error())
+		return
+	}
+	srv.deps.Logger.Info("DB", "手动备份完成: %s (含 %d 条记录)", backupPath, backupCount)
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"ok":           true,
+		"backup_path":  backupPath,
+		"backup_count": backupCount,
+		"backup_time":  time.Now().Format(time.RFC3339),
+		"message":      "备份成功",
+	})
+}
+
 // clearDatabaseHandler POST /api/database/clear
 // 清空数据库（含自动备份 + 5分钟恢复窗口）
 func (srv *Server) clearDatabaseHandler(w http.ResponseWriter, r *http.Request) {
@@ -108,25 +129,21 @@ func (srv *Server) restoreDatabaseHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// 检查恢复时限（5分钟内）
+	// 验证备份文件存在
 	info, err := srv.deps.DB.ListBackups(backupDir)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "查询备份失败: "+err.Error())
 		return
 	}
-	var backupTime time.Time
+	backupExists := false
 	for _, b := range info {
 		if b.Path == req.BackupPath {
-			backupTime = b.CreatedAt
+			backupExists = true
 			break
 		}
 	}
-	if backupTime.IsZero() {
+	if !backupExists {
 		writeError(w, http.StatusNotFound, "备份文件不存在")
-		return
-	}
-	if time.Since(backupTime) > 5*time.Minute {
-		writeError(w, http.StatusForbidden, "已超过5分钟恢复时限，无法恢复")
 		return
 	}
 
@@ -164,23 +181,25 @@ func (srv *Server) listBackupsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 标注是否在恢复窗口内
+	// 标注备份类型
 	type backupView struct {
-		Path            string    `json:"path"`
-		Size            int64     `json:"size"`
-		CreatedAt       time.Time `json:"created_at"`
-		Restoreable     bool      `json:"restoreable"`      // 是否可恢复（5分钟内）
-		RestoreDeadline time.Time `json:"restore_deadline"` // 恢复截止时间
+		Path      string    `json:"path"`
+		Size      int64     `json:"size"`
+		CreatedAt time.Time `json:"created_at"`
+		Type      string    `json:"type"` // "auto" 自动备份 / "manual" 手动备份
 	}
 
 	var views []backupView
 	for _, b := range backups {
+		name := filepath.Base(b.Path)
 		v := backupView{
-			Path:            b.Path,
-			Size:            b.Size,
-			CreatedAt:       b.CreatedAt,
-			Restoreable:     time.Since(b.CreatedAt) <= 5*time.Minute,
-			RestoreDeadline: b.CreatedAt.Add(5 * time.Minute),
+			Path:      b.Path,
+			Size:      b.Size,
+			CreatedAt: b.CreatedAt,
+			Type:      "manual",
+		}
+		if name == "speedtest_auto_backup.db" {
+			v.Type = "auto"
 		}
 		views = append(views, v)
 	}
