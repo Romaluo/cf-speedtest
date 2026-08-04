@@ -593,8 +593,8 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/zhimin/cf-speedtest
-ExecStart=/home/zhimin/cf-speedtest/cf-speedtest -config /home/zhimin/cf-speedtest/config.yaml
+WorkingDirectory=/home/你的用户名/cf-speedtest
+ExecStart=/home/你的用户名/cf-speedtest/cf-speedtest -config /home/你的用户名/cf-speedtest/config.yaml
 Restart=always
 RestartSec=10
 
