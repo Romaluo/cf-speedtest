@@ -277,7 +277,7 @@ func runDaemon(cfg *config.Config, resolver *geo.Resolver, db *repository.DB, si
 			nextCollect := nextTimeMulti(cfg.CollectTime)
 			collectTimer = time.NewTimer(time.Until(nextCollect))
 			dc.SetNextCollect(nextCollect)
-			logger.Info("DAEMON", "定时采集已激活，下次: %s", nextCollect.Format("2006-01-02 15:04:05"))
+			logger.Info("DAEMON", "定时采集已激活，配置: %s，下次: %s", cfg.CollectTime, nextCollect.Format("2006-01-02 15:04:05"))
 		} else {
 			d := time.Duration(cfg.Interval) * time.Minute
 			collectTimer = time.NewTimer(d)
