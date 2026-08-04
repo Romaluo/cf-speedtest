@@ -1473,12 +1473,27 @@ async function saveConfig(){
   if(!validateWeightSum()){ toast('四项权重之和必须等于 1.0', 'err'); return; }
   if(!validateConcurrency()){ return; }
   if(!await customConfirm('保存配置？将覆盖 config.yaml（注释会丢失，原始版本备份为 .bak）')) return;
+  // 记录定时相关配置的原始值（修改后需重启才生效）
+  const oldCollectTime = curConfig ? curConfig.collect_time : '';
+  const oldInterval = curConfig ? curConfig.interval : 0;
+  const oldPushInterval = curConfig ? curConfig.push_interval : 0;
   try{
     const r = await api('/api/config',{method:'PUT',body:JSON.stringify(collectConfig())});
     curConfig = r.config;
     let msg = '配置已保存';
     if(r.warnings&&r.warnings.length) msg += '（'+r.warnings.join('；')+'）';
     toast(msg, r.warnings&&r.warnings.length?'err':'ok');
+    // 检测定时相关配置是否变更
+    const newCT = curConfig.collect_time || '';
+    const newIv = curConfig.interval || 0;
+    const newPI = curConfig.push_interval || 0;
+    if(newCT !== oldCollectTime || newIv !== oldInterval || newPI !== oldPushInterval){
+      setTimeout(()=>{
+        customConfirm('⚠ 定时配置已修改！\n\n新的定时采集/推送时间需要重启服务后才会生效。\n\n是否立即重启服务？').then(ok=>{
+          if(ok) restartSystem();
+        });
+      }, 800);
+    }
   }catch(e){ toast(e.message,'err'); }
 }
 
