@@ -50,6 +50,7 @@
 - **多目标推送**：Cloudflare DNS 记录 + GitHub 仓库文件 + WxPusher 微信通知
 - **Web 全流程管理**：内置 Web Dashboard（go:embed 编译嵌入），在线配置、实时监控、一键操作
 - **定时自动化**：每日定时采集 + 可配置间隔自动推送，后台守护进程模式
+- **一键自动更新**：内置版本检查 + 断点续传下载 + sha256 校验 + 原子安装 + 自动重启，Web 面板一键完成升级
 - **系统级资源清理**：GC 回收、临时文件清理、残留进程终止、数据库 VACUUM
 
 ### 评分体系（100 分制）
@@ -414,6 +415,16 @@ sudo systemctl enable --now cf-speedtest
 | `web_password` | string | `admin` | 登录密码 |
 | `web_session_ttl` | duration | `12h` | 会话有效期 |
 
+#### 自动更新
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `update_check_enable` | bool | `false` | 启用版本检查 |
+| `update_check_url` | string | - | version.json 的 URL（推荐 raw.githubusercontent.com） |
+| `update_check_interval` | duration | `24h` | 检查间隔（最小 1m） |
+| `update_auto_download` | bool | `false` | 检测到新版本时自动下载（不自动安装） |
+| `update_temp_dir` | string | - | 下载/解压临时目录（空=系统默认） |
+
 ### 示例配置
 
 ```yaml
@@ -498,6 +509,13 @@ web_host: 0.0.0.0
 web_port: 8080
 web_username: admin
 web_password: "your-password"
+
+# 自动更新
+update_check_enable: true
+update_check_url: https://raw.githubusercontent.com/your-repo/cf-speedtest/main/version.json
+update_check_interval: 24h
+update_auto_download: false
+update_temp_dir: ""
 ```
 
 ---
@@ -528,6 +546,25 @@ web_password: "your-password"
 - **终止任务**：中途停止正在运行的任务
 - **重启系统**：一键重启服务（保留后台模式状态）
 - **后台模式开关**：启动/停止定时任务（需二次确认）
+
+#### 自动更新（v1.1.0+）
+
+启用版本检查后，Web 面板顶部会自动显示新版本提醒 banner，点击"立即更新"即可一键完成升级：
+
+1. **版本检查**：后台按 `update_check_interval` 定期拉取 `version.json`，对比语义化版本号
+2. **下载**：断点续传下载更新包，失败自动重试 3 次，实时显示进度/速度/ETA
+3. **校验**：sha256 + 文件大小双重校验，防止下载损坏
+4. **安装**：Linux 原子 rename，Windows rename-old + state.json 标记，失败自动回滚
+5. **重启**：安装完成后自动重启进程，Web 面板自动重连
+
+**配置方法**：在 Web 面板"配置"页找到"自动更新"区，启用版本检查并填入 `version.json` URL（推荐使用 GitHub Release 的 `version.json` raw 地址）。也可点击"立即检查更新"手动触发一次检查。
+
+**安全机制**：
+
+- 下载使用 HTTPS，校验失败自动删除并重试
+- 安装前自动备份当前二进制（`.bak`），失败回滚
+- 启动时自动清理上次更新残留的 `.old` / `.new` 文件
+- 更新过程中可通过模态框"取消更新"按钮中止（仅下载/校验阶段有效）
 
 ### 2. 命令行模式
 
@@ -703,8 +740,18 @@ cf-speedtest/
 │   ├── auth.go                # 认证中间件、会话管理
 │   ├── database_handler.go    # 数据库 API（查询、清空、备份、恢复）
 │   ├── restart.go             # 服务重启（systemd / fork-exec）
+│   ├── update_handler.go      # 更新状态/检查 API
+│   ├── update_apply.go        # 更新触发/取消/SSE 进度推送
 │   └── static/
 │       └── index.html         # 前端单页应用（go:embed 编译嵌入）
+├── updater/                   # 自动更新模块
+│   ├── types.go               # 状态机、VersionManifest、StatusResponse、ProgressEvent
+│   ├── checker.go             # 版本检查器（拉取 version.json、语义化比较）
+│   ├── downloader.go          # 下载器（断点续传、进度回调、sha256 校验）
+│   ├── manager.go             # 更新管理器（状态机编排、SSE 事件分发）
+│   ├── installer.go           # 安装器（解压 tar.gz/zip、平台分支原子安装、回滚）
+│   └── state.go               # 更新状态持久化、启动清理残留文件
+├── version.json               # 版本元数据（v1.1.0+，供自动更新读取）
 ├── log/
 │   └── log.go                 # 日志模块
 ├── config.yaml                # 运行配置

@@ -72,3 +72,10 @@ web_host: 0.0.0.0
 web_port: 8080
 web_username: admin
 web_password: admin
+
+# 自动更新 (启动 30s 后首次检查 + 按 update_check_interval 间隔重复)
+update_check_enable: true
+update_check_url: "https://raw.githubusercontent.com/Romaluo/cf-speedtest/main/version.json"
+update_check_interval: 24h0m0s
+update_auto_download: false
+update_temp_dir: ""

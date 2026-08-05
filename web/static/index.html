@@ -146,6 +146,42 @@
   .toast.ok{border-color:var(--ok)}.toast.err{border-color:var(--err)}
   .hidden{display:none!important}
 
+  /* 自动更新 banner */
+  .update-banner{display:flex;align-items:center;gap:14px;padding:10px 20px;background:linear-gradient(90deg,rgba(59,130,246,.18),rgba(16,185,129,.12));border-bottom:1px solid var(--accent);color:var(--txt);font-size:13px;flex-wrap:wrap}
+  .update-banner .ub-icon{font-size:16px}
+  .update-banner .ub-text{flex:1;min-width:200px}
+  .update-banner .ub-version{color:var(--accent2);font-weight:700}
+  .update-banner .ub-notes{color:var(--muted);font-size:11px;margin-top:2px;max-height:36px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:520px}
+  .update-banner .ub-close{cursor:pointer;color:var(--muted);font-size:16px;padding:0 4px}
+  .update-banner .ub-close:hover{color:var(--txt)}
+
+  /* 更新进度模态框 */
+  .um-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:flex;align-items:center;justify-content:center}
+  .um-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:24px;width:480px;max-width:92vw}
+  .um-box h3{font-size:15px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+  .um-state{display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:13px}
+  .um-state .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .um-pbar{height:10px;background:var(--bg);border-radius:5px;overflow:hidden;margin:10px 0 6px}
+  .um-pbar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .3s ease;width:0%}
+  .um-pct{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:14px}
+  .um-steps{display:flex;justify-content:space-between;margin:14px 0;position:relative}
+  .um-steps::before{content:'';position:absolute;top:9px;left:0;right:0;height:2px;background:var(--border);z-index:0}
+  .um-step{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
+  .um-step .dot{width:18px;height:18px;border-radius:50%;background:var(--panel2);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted);transition:.2s}
+  .um-step.active .dot{background:var(--accent);border-color:var(--accent);color:#fff}
+  .um-step.done .dot{background:var(--ok);border-color:var(--ok);color:#fff}
+  .um-step.failed .dot{background:var(--err);border-color:var(--err);color:#fff}
+  .um-step .lbl{font-size:10px;color:var(--muted);text-align:center;white-space:nowrap}
+  .um-step.active .lbl{color:var(--accent)}
+  .um-step.done .lbl{color:var(--ok)}
+  .um-step.failed .lbl{color:var(--err)}
+  .um-meta{font-size:12px;color:var(--muted);background:var(--panel2);border-radius:6px;padding:8px 12px;margin-top:10px;min-height:18px}
+  .um-meta b{color:var(--txt)}
+  .um-err{color:var(--err);background:rgba(239,68,68,.1);border:1px solid var(--err);border-radius:6px;padding:10px 12px;margin-top:10px;font-size:12px;white-space:pre-wrap;word-break:break-word}
+  .um-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+  .um-done-info{color:var(--ok);font-size:12px;margin-top:8px;text-align:center}
+
   /* 任务运行时: 导航标签保持可用(允许查看数据/中途终止任务),
      仅锁定各标签页内的按钮/输入等交互元素(由 lockAllControlsExcept 处理) */
   body.task-running #btn-cancel-job{opacity:1!important}
@@ -179,6 +215,18 @@
     <span class="uinfo" id="uinfo"></span>
     <button class="ghost sm" id="logout-btn">退出</button>
   </header>
+
+  <!-- 更新提醒 banner -->
+  <div id="update-banner" class="update-banner hidden">
+    <span class="ub-icon">⬆</span>
+    <div class="ub-text">
+      发现新版本 <span class="ub-version" id="ub-version"></span>
+      <div class="ub-notes" id="ub-notes"></div>
+    </div>
+    <button class="sm" id="ub-apply-btn" onclick="startUpdate()">立即更新</button>
+    <span class="ub-close" onclick="hideUpdateBanner()" title="稍后再说">×</span>
+  </div>
+
   <main>
 
     <!-- 概览 -->
@@ -303,6 +351,35 @@
 
 <div id="toast" class="toast hidden"></div>
 
+<!-- 更新进度模态框 -->
+<div id="update-modal" class="um-overlay" style="display:none">
+  <div class="um-box">
+    <h3><span id="um-icon">⬆</span> <span id="um-title">正在更新</span></h3>
+    <div class="um-state">
+      <span class="spinner" id="um-spinner"></span>
+      <span id="um-state-text">准备中...</span>
+    </div>
+    <div class="um-pbar"><i id="um-pbar-fill"></i></div>
+    <div class="um-pct">
+      <span id="um-pct-text">0%</span>
+      <span id="um-extra"></span>
+    </div>
+    <div class="um-steps" id="um-steps">
+      <div class="um-step" data-state="downloading"><span class="dot">1</span><span class="lbl">下载</span></div>
+      <div class="um-step" data-state="verifying"><span class="dot">2</span><span class="lbl">校验</span></div>
+      <div class="um-step" data-state="extracting"><span class="dot">3</span><span class="lbl">解压</span></div>
+      <div class="um-step" data-state="installing"><span class="dot">4</span><span class="lbl">安装</span></div>
+      <div class="um-step" data-state="restarting"><span class="dot">5</span><span class="lbl">重启</span></div>
+    </div>
+    <div class="um-meta" id="um-meta">等待更新流程启动...</div>
+    <div class="um-err hidden" id="um-err"></div>
+    <div class="um-actions">
+      <button class="ghost" id="um-cancel-btn" onclick="cancelUpdate()">取消更新</button>
+      <button class="ghost" id="um-close-btn" onclick="closeUpdateModal()" style="display:none">关闭</button>
+    </div>
+  </div>
+</div>
+
 <!-- 自定义确认对话框（替代原生 confirm，避免深色主题下黑屏） -->
 <div id="confirm-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;align-items:center;justify-content:center;">
   <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:420px;width:90%;">
@@ -423,6 +500,8 @@ async function loadAll(){
   // 修复:此前仅在进入"配置"tab 时才调用 pollDaemonStatus,导致登录后若 daemon 已激活,
   // 按钮仍可点击,用户可重复触发与定时任务冲突的手动测速/推送
   pollDaemonStatus();
+  // 启动更新状态轮询(检测新版本时显示 banner)
+  pollUpdateStatus();
 }
 
 // ===== Tab =====
@@ -959,6 +1038,11 @@ async function loadConfig(){
   try{
     curConfig = await api('/api/config');
     renderConfigForm(curConfig);
+    // 拉取更新状态,填充"上次检查时间"显示
+    try{
+      const s = await api('/api/update/status');
+      updateLastCheckDisplay(s);
+    }catch(e){}
   }catch(e){ toast(e.message,'err'); }
 }
 function field(label, key, type='text', opts={}){
@@ -1133,6 +1217,37 @@ function renderConfigForm(c){
     `<div class="field"><label>启用Web</label><input id="cfg-web_enable" type="checkbox" ${c.web_enable?'checked':''}></div>` +
     field('监听地址','web_host') + field('监听端口','web_port','number') +
     field('用户名','web_username') + field('密码','web_password') + field('会话有效期','web_session_ttl'));
+  html += sec('自动更新',
+    `<div class="field full"><label>启用版本检查</label>
+      <input id="cfg-update_check_enable" type="checkbox" ${c.update_check_enable?'checked':''}>
+      <span class="hint">启用后定期检查 GitHub 上的 version.json,发现新版本时在面板顶部提醒</span>
+    </div>` +
+    field('version.json URL','update_check_url',{full:true,hint:'version.json 的 URL,推荐 raw.githubusercontent.com'}) +
+    `<div class="field"><label>检查间隔</label>
+      <select id="cfg-update_check_interval">
+        <option value="1h" ${(c.update_check_interval||'').startsWith('1h')?'selected':''}>1 小时</option>
+        <option value="6h" ${(c.update_check_interval||'').startsWith('6h')?'selected':''}>6 小时</option>
+        <option value="12h" ${(c.update_check_interval||'').startsWith('12h')?'selected':''}>12 小时</option>
+        <option value="24h" ${(c.update_check_interval||'').startsWith('24h')||!c.update_check_interval||c.update_check_interval==='0s'?'selected':''}>24 小时(默认)</option>
+        <option value="48h" ${(c.update_check_interval||'').startsWith('48h')?'selected':''}>48 小时</option>
+      </select>
+      <div class="hint">最小 1 分钟,后台按此间隔自动检查</div>
+    </div>` +
+    `<div class="field"><label>自动下载</label>
+      <input id="cfg-update_auto_download" type="checkbox" ${c.update_auto_download?'checked':''}>
+      <span class="hint">检测到新版本时自动下载(不会自动安装,需手动确认安装)</span>
+    </div>` +
+    field('临时目录','update_temp_dir',{hint:'下载/解压临时目录(空=系统默认 /tmp 或 %TEMP%)'}) +
+    `<div class="field full" style="margin-top:8px;padding:12px;background:var(--panel2);border-radius:6px;border:1px solid var(--border)">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:8px">
+        <div>
+          <span id="last-check-time" class="hint" style="font-size:12px">尚未检查</span>
+          <span id="last-check-error" class="hint" style="display:none;color:var(--err);font-size:11px;margin-left:8px"></span>
+        </div>
+        <button type="button" class="sm" id="btn-check-update-now" onclick="checkUpdateNow()">立即检查更新</button>
+      </div>
+      <div class="hint" style="font-size:11px">启用后可在面板顶部看到新版本提醒,点击"立即更新"一键完成下载、校验、安装和重启</div>
+    </div>`);
   $('#config-form').innerHTML = html;
 
   // IP 选择模式动态交互
@@ -1311,6 +1426,337 @@ function updateButtonStates(){
   }
 }
 
+// ===== 自动更新 =====
+let updatePollTimer = null;       // banner 轮询定时器
+let updateSSE = null;             // SSE 进度连接
+let updateInProgress = false;    // 更新流程进行中标记
+const UPDATE_POLL_INTERVAL = 60000; // banner 轮询间隔: 60s
+
+// 状态机步骤顺序(用于步骤指示器高亮)
+const UPDATE_STEP_ORDER = ['downloading','verifying','extracting','installing','restarting'];
+const UPDATE_STEP_LABELS = {
+  idle: '空闲', checking: '检查版本中', downloading: '下载中',
+  verifying: '校验中', extracting: '解压中', installing: '安装中',
+  restarting: '重启中', failed: '更新失败', done: '更新完成'
+};
+
+// pollUpdateStatus 轮询 /api/update/status,控制 banner 显示
+async function pollUpdateStatus(){
+  // 更新流程进行中时停止轮询(由 SSE 接管 UI)
+  if(updateInProgress) return;
+  try{
+    const s = await api('/api/update/status');
+    renderUpdateBanner(s);
+    // 若状态为非 idle(后端正在执行),同步打开模态框
+    if(s.state && s.state !== 'idle' && s.state !== 'failed' && s.state !== 'done'){
+      if(!$('#update-modal').style.display || $('#update-modal').style.display === 'none'){
+        openUpdateModal();
+        connectUpdateSSE();
+      }
+    }
+  }catch(e){
+    // 静默失败,不打扰用户
+  }
+  clearInterval(updatePollTimer);
+  updatePollTimer = setInterval(pollUpdateStatus, UPDATE_POLL_INTERVAL);
+}
+
+// renderUpdateBanner 根据 status 渲染 banner
+function renderUpdateBanner(s){
+  const banner = $('#update-banner');
+  if(!banner) return;
+  // 更新流程进行中或无新版本时隐藏 banner
+  if(updateInProgress || !s.has_update){
+    banner.classList.add('hidden');
+    return;
+  }
+  // 检查错误时也不显示 banner(避免误导)
+  if(s.last_check_error && !s.has_update){
+    banner.classList.add('hidden');
+    return;
+  }
+  $('#ub-version').textContent = s.latest_version || '未知';
+  $('#ub-notes').textContent = s.release_notes || '';
+  banner.classList.remove('hidden');
+}
+
+function hideUpdateBanner(){
+  $('#update-banner').classList.add('hidden');
+}
+
+// checkUpdateNow 手动触发一次版本检查(配置页"立即检查"按钮)
+async function checkUpdateNow(){
+  const btn = $('#btn-check-update-now');
+  const origText = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = '检查中...'; }
+  try{
+    const s = await api('/api/update/check',{method:'POST'});
+    renderUpdateBanner(s);
+    if(s.has_update){
+      toast('发现新版本: ' + s.latest_version, 'ok');
+      // 切到概览页让用户看到 banner
+      switchTab('dash');
+    } else if(s.last_check_error){
+      toast('检查失败: ' + s.last_check_error, 'err');
+    } else {
+      toast('已是最新版本 (' + s.current_version + ')', 'ok');
+    }
+    // 更新配置页的"上次检查时间"显示
+    updateLastCheckDisplay(s);
+  }catch(e){
+    toast(e.message,'err');
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = origText; }
+  }
+}
+
+// updateLastCheckDisplay 更新配置页"上次检查时间"显示
+function updateLastCheckDisplay(s){
+  const el = $('#last-check-time');
+  if(!el) return;
+  if(s.last_check_at){
+    const t = new Date(s.last_check_at);
+    el.textContent = '上次检查: ' + (isNaN(t) ? s.last_check_at : t.toLocaleString('zh-CN',{hour12:false}));
+  } else {
+    el.textContent = '尚未检查';
+  }
+  const errEl = $('#last-check-error');
+  if(errEl){
+    if(s.last_check_error){
+      errEl.textContent = '错误: ' + s.last_check_error;
+      errEl.style.display = 'block';
+    } else {
+      errEl.style.display = 'none';
+    }
+  }
+}
+
+// startUpdate 用户点击"立即更新",触发更新流程并打开模态框
+async function startUpdate(){
+  if(updateInProgress){
+    toast('更新流程正在进行中', 'err');
+    return;
+  }
+  if(!await customConfirm('确定要立即更新到最新版本吗？\n\n更新期间服务将短暂中断，完成后自动重启。')) return;
+  hideUpdateBanner();
+  try{
+    await api('/api/update/apply',{method:'POST'});
+    openUpdateModal();
+    connectUpdateSSE();
+  }catch(e){
+    toast(e.message,'err');
+  }
+}
+
+// openUpdateModal 打开进度模态框,初始化 UI
+function openUpdateModal(){
+  const modal = $('#update-modal');
+  modal.style.display = 'flex';
+  updateInProgress = true;
+  // 重置 UI
+  $('#um-title').textContent = '正在更新';
+  $('#um-spinner').style.display = '';
+  $('#um-state-text').textContent = '准备中...';
+  $('#um-pbar-fill').style.width = '0%';
+  $('#um-pct-text').textContent = '0%';
+  $('#um-extra').textContent = '';
+  $('#um-meta').textContent = '等待更新流程启动...';
+  $('#um-err').classList.add('hidden');
+  $('#um-err').textContent = '';
+  $('#um-cancel-btn').style.display = '';
+  $('#um-close-btn').style.display = 'none';
+  // 重置步骤指示器
+  document.querySelectorAll('.um-step').forEach(el => {
+    el.classList.remove('active','done','failed');
+    el.querySelector('.dot').textContent = el.dataset.state ? UPDATE_STEP_ORDER.indexOf(el.dataset.state) + 1 : '';
+  });
+}
+
+// closeUpdateModal 关闭进度模态框
+function closeUpdateModal(){
+  $('#update-modal').style.display = 'none';
+  if(updateSSE){
+    updateSSE.close();
+    updateSSE = null;
+  }
+  updateInProgress = false;
+  // 重新轮询状态以同步 banner
+  pollUpdateStatus();
+}
+
+// connectUpdateSSE 建立 SSE 连接接收进度事件
+function connectUpdateSSE(){
+  if(updateSSE){
+    try{ updateSSE.close(); }catch(e){}
+    updateSSE = null;
+  }
+  const es = new EventSource('/api/update/progress');
+  updateSSE = es;
+  // progress 事件: 下载/校验/安装中
+  es.addEventListener('progress', e => {
+    try{
+      const ev = JSON.parse(e.data);
+      handleProgressEvent(ev);
+    }catch(err){}
+  });
+  // done 事件: 更新完成
+  es.addEventListener('done', e => {
+    try{
+      const ev = JSON.parse(e.data);
+      handleDoneEvent(ev);
+    }catch(err){}
+  });
+  // error 事件: 更新失败
+  es.addEventListener('error', e => {
+    // SSE error 事件可能携带 data(应用层错误),也可能是连接断开
+    if(e.data){
+      try{
+        const ev = JSON.parse(e.data);
+        handleErrorEvent(ev);
+        return;
+      }catch(err){}
+    }
+    // 连接异常断开:若更新仍在进行,尝试重连一次
+    if(updateInProgress && es.readyState === EventSource.CLOSED){
+      setTimeout(() => {
+        if(updateInProgress) connectUpdateSSE();
+      }, 2000);
+    }
+  });
+}
+
+// handleProgressEvent 处理进度事件
+function handleProgressEvent(ev){
+  const pct = Math.min(100, Math.max(0, ev.percent || 0));
+  $('#um-pbar-fill').style.width = pct + '%';
+  $('#um-pct-text').textContent = pct.toFixed(0) + '%';
+  $('#um-state-text').textContent = UPDATE_STEP_LABELS[ev.state] || ev.state || '处理中';
+  // 速度/ETA(仅 downloading)
+  if(ev.speed){
+    $('#um-extra').textContent = '速度: ' + ev.speed + (ev.eta ? ' · 剩余: ' + ev.eta : '');
+  } else {
+    $('#um-extra').textContent = '';
+  }
+  // 步骤说明
+  if(ev.message){
+    $('#um-meta').innerHTML = '<b>' + (UPDATE_STEP_LABELS[ev.state] || '') + '</b> · ' + escapeHtml(ev.message);
+  } else {
+    $('#um-meta').textContent = UPDATE_STEP_LABELS[ev.state] || '';
+  }
+  // 更新步骤指示器
+  updateStepIndicator(ev.state);
+}
+
+// handleDoneEvent 处理完成事件
+function handleDoneEvent(ev){
+  $('#um-pbar-fill').style.width = '100%';
+  $('#um-pct-text').textContent = '100%';
+  $('#um-spinner').style.display = 'none';
+  $('#um-state-text').textContent = '更新完成，正在重启服务...';
+  $('#um-title').textContent = '更新完成';
+  $('#um-meta').innerHTML = '<span style="color:var(--ok)">✓ 更新已安装，服务正在重启，请稍候...</span>';
+  $('#um-cancel-btn').style.display = 'none';
+  // 标记所有步骤完成
+  document.querySelectorAll('.um-step').forEach(el => {
+    el.classList.remove('active','failed');
+    el.classList.add('done');
+    el.querySelector('.dot').textContent = '✓';
+  });
+  // 轮询健康检查,等待服务恢复后关闭模态框
+  waitForRestart();
+}
+
+// handleErrorEvent 处理失败事件
+function handleErrorEvent(ev){
+  $('#um-spinner').style.display = 'none';
+  $('#um-state-text').textContent = '更新失败';
+  $('#um-title').textContent = '更新失败';
+  $('#um-cancel-btn').style.display = 'none';
+  $('#um-close-btn').style.display = '';
+  const errEl = $('#um-err');
+  errEl.textContent = ev.error || '未知错误';
+  errEl.classList.remove('hidden');
+  // 标记当前步骤为失败
+  const failedStep = ev.state && UPDATE_STEP_ORDER.includes(ev.state) ? ev.state : null;
+  document.querySelectorAll('.um-step').forEach(el => {
+    if(el.dataset.state === failedStep){
+      el.classList.remove('active','done');
+      el.classList.add('failed');
+      el.querySelector('.dot').textContent = '✕';
+    } else if(el.classList.contains('active')){
+      el.classList.remove('active');
+      el.classList.add('failed');
+      el.querySelector('.dot').textContent = '✕';
+    }
+  });
+  if(updateSSE){ try{ updateSSE.close(); }catch(e){} updateSSE = null; }
+  updateInProgress = false;
+}
+
+// updateStepIndicator 根据当前状态高亮步骤指示器
+function updateStepIndicator(state){
+  if(!state || !UPDATE_STEP_ORDER.includes(state)) return;
+  const idx = UPDATE_STEP_ORDER.indexOf(state);
+  document.querySelectorAll('.um-step').forEach((el, i) => {
+    el.classList.remove('active','done','failed');
+    const dot = el.querySelector('.dot');
+    if(i < idx){
+      el.classList.add('done');
+      dot.textContent = '✓';
+    } else if(i === idx){
+      el.classList.add('active');
+      dot.textContent = String(i + 1);
+    } else {
+      dot.textContent = String(i + 1);
+    }
+  });
+}
+
+// waitForRestart 更新完成后轮询健康检查,等待服务恢复
+async function waitForRestart(){
+  const delays = [2000, 3000, 4000, 5000, 5000, 5000, 6000]; // 累计 30s
+  for(let i = 0; i < delays.length; i++){
+    await sleep(delays[i]);
+    try{
+      const h = await fetch('/api/health',{signal:AbortSignal.timeout(2000)});
+      if(h.ok){
+        // 服务已恢复,重新登录并关闭模态框
+        $('#um-meta').innerHTML = '<span style="color:var(--ok)">✓ 服务已恢复，正在重新连接...</span>';
+        try{
+          const savedUser = localStorage.getItem('cf_user') || 'admin';
+          const savedPass = localStorage.getItem('cf_pass') || 'admin';
+          await api('/api/login',{method:'POST',body:JSON.stringify({username:savedUser,password:savedPass})});
+        }catch(e){}
+        closeUpdateModal();
+        toast('更新完成，服务已恢复', 'ok');
+        refreshDash();
+        return;
+      }
+    }catch(e){
+      // 服务尚未恢复,继续等待
+    }
+  }
+  $('#um-meta').innerHTML = '<span style="color:var(--warn)">服务恢复超时，请手动刷新页面</span>';
+  $('#um-close-btn').style.display = '';
+}
+
+// cancelUpdate 取消正在进行的更新(仅下载/校验阶段有效)
+async function cancelUpdate(){
+  if(!await customConfirm('确定要取消更新吗？\n\n仅在下载和校验阶段可取消，安装后无法中止。')) return;
+  try{
+    await api('/api/update/cancel',{method:'POST'});
+    toast('取消请求已发送', 'ok');
+  }catch(e){
+    toast(e.message,'err');
+  }
+}
+
+// escapeHtml 转义 HTML 特殊字符,防止 message 中包含恶意标签
+function escapeHtml(s){
+  if(!s) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 // ===== TCP 端口选择器 =====
 let selectedPorts = [];
 function initPortSelector(ports){
@@ -1458,6 +1904,9 @@ function collectConfig(){
   c.log_file=get('log_file'); c.ip_db_path=get('ip_db_path'); c.daemon_mode=getChk('daemon_mode');
   c.web_enable=getChk('web_enable'); c.web_host=get('web_host'); c.web_port=getNum('web_port');
   c.web_username=get('web_username'); c.web_password=get('web_password'); c.web_session_ttl=get('web_session_ttl');
+  c.update_check_enable=getChk('update_check_enable'); c.update_check_url=get('update_check_url');
+  c.update_check_interval=get('update_check_interval'); c.update_auto_download=getChk('update_auto_download');
+  c.update_temp_dir=get('update_temp_dir');
   return c;
 }
 async function testConfig(){

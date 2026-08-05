@@ -458,6 +458,13 @@ type configDTO struct {
 	WebUsername   string `json:"web_username"`
 	WebPassword   string `json:"web_password"`
 	WebSessionTTL string `json:"web_session_ttl"`
+
+	// 自动更新
+	UpdateCheckEnable   bool   `json:"update_check_enable"`   // 启用版本检查
+	UpdateCheckURL      string `json:"update_check_url"`      // version.json 的 URL
+	UpdateCheckInterval string `json:"update_check_interval"` // 检查间隔(字符串形式,如 24h)
+	UpdateAutoDownload  bool   `json:"update_auto_download"`  // 检测到新版本时自动下载
+	UpdateTempDir       string `json:"update_temp_dir"`       // 下载/解压临时目录
 }
 
 func cfgToDTO(c *config.Config) configDTO {
@@ -534,6 +541,11 @@ func cfgToDTO(c *config.Config) configDTO {
 		WebUsername:            c.WebUsername,
 		WebPassword:            c.WebPassword,
 		WebSessionTTL:          durStr(c.WebSessionTTL),
+		UpdateCheckEnable:      c.UpdateCheckEnable,
+		UpdateCheckURL:         c.UpdateCheckURL,
+		UpdateCheckInterval:    durStr(c.UpdateCheckInterval),
+		UpdateAutoDownload:     c.UpdateAutoDownload,
+		UpdateTempDir:          c.UpdateTempDir,
 	}
 }
 
@@ -667,6 +679,18 @@ func dtoToCfg(d configDTO) (*config.Config, error) {
 		return nil, fmt.Errorf("web_session_ttl 格式错误: %w", err)
 	}
 	c.WebSessionTTL = dur
+	// 自动更新字段
+	c.UpdateCheckEnable = d.UpdateCheckEnable
+	c.UpdateCheckURL = d.UpdateCheckURL
+	if strings.TrimSpace(d.UpdateCheckInterval) != "" {
+		dur, err = parseDur(d.UpdateCheckInterval)
+		if err != nil {
+			return nil, fmt.Errorf("update_check_interval 格式错误: %w", err)
+		}
+		c.UpdateCheckInterval = dur
+	}
+	c.UpdateAutoDownload = d.UpdateAutoDownload
+	c.UpdateTempDir = d.UpdateTempDir
 	return c, nil
 }
 

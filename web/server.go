@@ -17,6 +17,7 @@ import (
 	"cf-speedtest/geo"
 	"cf-speedtest/log"
 	"cf-speedtest/repository"
+	"cf-speedtest/updater"
 )
 
 //go:embed static/*
@@ -32,6 +33,8 @@ type Deps struct {
 	Version   string
 	Daemon    *DaemonControl
 	CIDRStats *collector.CIDRStats
+	Checker   *updater.Checker // 版本检查器(可为 nil,表示禁用更新检查)
+	Manager   *updater.Manager // 更新管理器(可为 nil,与 Checker 同时为 nil 或同时非 nil)
 }
 
 // Server Web Dashboard 服务
@@ -127,6 +130,13 @@ func (srv *Server) routes() http.Handler {
 
 	mux.HandleFunc("GET /api/daemon/status", auth(srv.daemonStatusHandler))
 	mux.HandleFunc("POST /api/daemon/toggle", auth(srv.daemonToggleHandler))
+
+	// 自动更新（版本检查 + 下载/安装/进度）
+	mux.HandleFunc("GET /api/update/status", auth(srv.updateStatusHandler))
+	mux.HandleFunc("POST /api/update/check", auth(srv.updateCheckHandler))
+	mux.HandleFunc("POST /api/update/apply", auth(srv.updateApplyHandler))
+	mux.HandleFunc("GET /api/update/progress", auth(srv.updateProgressHandler))
+	mux.HandleFunc("POST /api/update/cancel", auth(srv.updateCancelHandler))
 
 	// 数据库管理（清空/备份/恢复）
 	mux.HandleFunc("POST /api/database/clear", auth(srv.clearDatabaseHandler))

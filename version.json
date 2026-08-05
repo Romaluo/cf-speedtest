@@ -1,0 +1,18 @@
+{
+  "version": "1.1.0",
+  "release_notes": "## ✨ 新功能\n- collect_time 多时间点定时采集:支持配置多个时间点自动测速\n- 手动/自动备份功能:可手动触发备份或定时自动备份\n- 定时配置保存后提示重启服务\n\n## 🐛 修复\n- 启动日志打印 CollectTime 配置值,便于排查多时间点问题\n\n## 🔒 安全\n- 脱敏 README 中 systemd 服务路径的用户名",
+  "published_at": "2026-08-04T14:32:11Z",
+  "min_required_version": "1.0.0",
+  "assets": {
+    "linux/amd64": {
+      "url": "https://github.com/Romaluo/cf-speedtest/releases/download/v1.1.0/cf-speedtest-linux-amd64.tar.gz",
+      "size": 9371134,
+      "sha256": "74798af8e7ef28c5fa188d38f74138c73d7a7ead82a210eb8a478759f748b2a8"
+    },
+    "windows/amd64": {
+      "url": "https://github.com/Romaluo/cf-speedtest/releases/download/v1.1.0/cf-speedtest-windows-amd64.zip",
+      "size": 9169360,
+      "sha256": "162931c6786c8e5edba6853a1dda432e3de98c560546f80757412466dc3fa324"
+    }
+  }
+}

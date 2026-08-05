@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -22,6 +23,7 @@ import (
 	"cf-speedtest/pusher"
 	"cf-speedtest/repository"
 	"cf-speedtest/scorer"
+	"cf-speedtest/updater"
 	"cf-speedtest/web"
 )
 
@@ -121,6 +123,11 @@ func main() {
 		os.Exit(1)
 	}
 	defer logger.Close()
+
+	// 启动时清理上次更新遗留的临时文件(Windows .old 二进制等)
+	// update_state.json 由 Installer 在 Windows 替换二进制时写入
+	// Linux 不写 update_state.json,该函数为 no-op(仅检查文件是否存在)
+	updater.CleanupOnStartup(logger)
 
 	// 初始化资源清理器
 	cleaner = cleanup.New(cfg, logger)
@@ -225,6 +232,25 @@ func main() {
 
 	// 启动 Web Dashboard（如启用）
 	if cfg.WebEnable {
+		// 创建版本检查器 + 更新管理器(Phase 1:仅检查;Phase 2+:下载/校验/安装/重启)
+		var checker *updater.Checker
+		var mgr *updater.Manager
+		if cfg.UpdateCheckEnable {
+			if cfg.UpdateCheckURL == "" {
+				logger.Warn("UPDATE", "update_check_enable=true 但 update_check_url 为空,跳过更新检查器初始化")
+			} else if version == "" {
+				logger.Warn("UPDATE", "当前版本号为空,跳过更新检查器初始化")
+			} else {
+				checker = updater.NewChecker(cfg.UpdateCheckURL, version, logger)
+				dl := updater.NewDownloader(cfg.UpdateTempDir, logger)
+				mgr = updater.NewManager(checker, dl, logger)
+				// 启动后台版本检查 goroutine:启动 30s 后首次检查,之后按 ticker 间隔重复
+				go startUpdateChecker(checker, cfg.UpdateCheckInterval, logger)
+			}
+		} else {
+			logger.Info("UPDATE", "自动更新检查已禁用(update_check_enable=false)")
+		}
+
 		webSrv := web.NewServer(web.Deps{
 			Cfg:       cfg,
 			CfgPath:   *configFile,
@@ -234,7 +260,13 @@ func main() {
 			Version:   version,
 			Daemon:    daemonCtrl,
 			CIDRStats: cidrStats,
+			Checker:   checker,
+			Manager:   mgr,
 		})
+		// 注入重启器(Phase 3 中 Manager 安装完成后调用 webSrv.Restart)
+		if mgr != nil {
+			mgr.SetRestarter(webSrv)
+		}
 		go func() {
 			if err := webSrv.Start(); err != nil {
 				logger.Error("WEB", "Web 服务退出: %v", err)
@@ -1128,4 +1160,40 @@ func daemonize(logPath string) error {
 
 func isWindows() bool {
 	return os.PathSeparator == '\\' || filepath.Separator == '\\'
+}
+
+// startUpdateChecker 启动后台版本检查 goroutine
+// 流程:启动 30s 后首次检查(避免与初始化竞争),之后按 interval 间隔重复
+// 检查失败不影响下一次 ticker;manifest 缓存在 Checker 内存中,Web 前端通过 /api/update/status 读取
+// 关闭:依赖进程退出(未提供停止 channel,因 Checker.Check 自带 60s 超时,goroutine 不会泄漏)
+func startUpdateChecker(checker *updater.Checker, interval time.Duration, lg *log.Logger) {
+	if checker == nil {
+		return
+	}
+	if interval <= 0 {
+		interval = 24 * time.Hour
+	}
+
+	// 启动 30s 后首次检查(给 Web 服务、数据库等初始化留时间)
+	time.Sleep(30 * time.Second)
+
+	runCheck := func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		if _, _, err := checker.Check(ctx); err != nil {
+			if lg != nil {
+				lg.Warn("UPDATE", "后台版本检查失败: %v", err)
+			}
+		}
+	}
+
+	// 首次检查
+	runCheck()
+
+	// 后续按 interval 重复
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for range ticker.C {
+		runCheck()
+	}
 }

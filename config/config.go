@@ -186,6 +186,13 @@ type Config struct {
 	WebPassword   string        `yaml:"web_password"`    // 登录密码（明文，建议部署后修改）
 	WebSessionTTL time.Duration `yaml:"web_session_ttl"` // 会话有效期
 
+	// 自动更新（P1：版本检查 + 后续阶段：下载/安装/重启）
+	UpdateCheckEnable   bool          `yaml:"update_check_enable"`   // 是否启用更新检查
+	UpdateCheckURL      string        `yaml:"update_check_url"`      // version.json 的 URL（HTTPS，推荐 raw.githubusercontent.com）
+	UpdateCheckInterval time.Duration `yaml:"update_check_interval"` // 检查间隔（默认 24h，最小 1m）
+	UpdateAutoDownload  bool          `yaml:"update_auto_download"`  // 检测到新版本时是否自动下载（不自动安装，默认 false）
+	UpdateTempDir       string        `yaml:"update_temp_dir"`       // 下载/解压临时目录（空=系统默认 /tmp 或 %TEMP%）
+
 	// 资源清理机制
 	Cleanup CleanupConfig `yaml:"cleanup"` // 任务完成后资源清理配置
 }
@@ -264,6 +271,11 @@ func DefaultConfig() *Config {
 		WebUsername:            "admin",
 		WebPassword:            "admin",
 		WebSessionTTL:          12 * time.Hour,
+		UpdateCheckEnable:      true,
+		UpdateCheckURL:         "https://raw.githubusercontent.com/Romaluo/cf-speedtest/main/version.json",
+		UpdateCheckInterval:    24 * time.Hour,
+		UpdateAutoDownload:     false,
+		UpdateTempDir:          "",
 		Cleanup: CleanupConfig{
 			Enable: true,
 			Strategies: map[string]CleanupStrategy{
@@ -377,6 +389,29 @@ func (cfg *Config) Validate() error {
 		}
 		if len(cfg.WxPusherTopicIDs) == 0 && len(cfg.WxPusherUIDs) == 0 {
 			return fmt.Errorf("wxpusher_enable 启用时 wxpusher_topic_ids 或 wxpusher_uids 至少需配置一项")
+		}
+	}
+
+	// 验证自动更新配置
+	if cfg.UpdateCheckEnable {
+		if strings.TrimSpace(cfg.UpdateCheckURL) == "" {
+			return fmt.Errorf("update_check_enable 启用时 update_check_url 不能为空")
+		}
+		// HTTPS 强制要求,但允许 HTTP 用于本地测试(localhost / 127.0.0.1)
+		if !strings.HasPrefix(cfg.UpdateCheckURL, "https://") {
+			if strings.HasPrefix(cfg.UpdateCheckURL, "http://localhost") ||
+				strings.HasPrefix(cfg.UpdateCheckURL, "http://127.0.0.1") {
+				// 本地测试模式,允许 HTTP
+			} else {
+				return fmt.Errorf("update_check_url 必须为 HTTPS 协议（当前: %s），本地测试可使用 http://localhost 或 http://127.0.0.1", cfg.UpdateCheckURL)
+			}
+		}
+		// 检查间隔最小 1 分钟，最大 30 天（避免过于频繁或过长间隔）
+		if cfg.UpdateCheckInterval < time.Minute {
+			cfg.UpdateCheckInterval = 24 * time.Hour
+		}
+		if cfg.UpdateCheckInterval > 30*24*time.Hour {
+			return fmt.Errorf("update_check_interval 无效: %v，最大 30 天", cfg.UpdateCheckInterval)
 		}
 	}
 

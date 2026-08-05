@@ -32,6 +32,14 @@ IP.txt
 cidr_stats.json
 geo_corrections.txt
 
+# ===== 自动更新产生的临时文件 =====
+update_state.json
+*.old
+*.new
+*.bak
+cf-speedtest-update-*
+cf-speedtest-*/
+
 # ===== windows-dist 下的二进制与重复大文件（仅保留文本文件作为参考） =====
 windows-dist/cf-speedtest.exe
 windows-dist/ip2region.xdb

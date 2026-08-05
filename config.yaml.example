@@ -123,6 +123,15 @@ web_username: admin
 web_password: admin
 web_session_ttl: 12h0m0s
 
+# ===== 自动更新 =====
+# 启用后,启动 30s 后首次检查 + 按 update_check_interval 间隔重复检查
+# version.json 仓库地址(通过 raw.githubusercontent.com 访问)
+update_check_enable: true
+update_check_url: "https://raw.githubusercontent.com/Romaluo/cf-speedtest/main/version.json"
+update_check_interval: 24h0m0s  # 最小 1m,最大 30d
+update_auto_download: false     # 检测到新版本时自动下载(不自动安装),需手动点击"立即更新"
+update_temp_dir: ""             # 下载/解压临时目录(空=系统默认 /tmp 或 %TEMP%)
+
 # ===== 资源清理机制 =====
 cleanup:
     enable: true
