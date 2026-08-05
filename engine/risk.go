@@ -75,32 +75,39 @@ func FilterByRisk(results []model.IPResult, threshold int, timeout time.Duration
 		ipList = append(ipList, ip)
 	}
 
-	// 并发查询风险分数
+	// 并发查询风险分数 — worker pool 模式
+	// 内存优化:仅启动 concurrency 个 worker,避免为每个 IP 创建一个 goroutine
 	type queryResult struct {
 		ip  string
 		r   *RiskCheckResult
 		err error
 	}
 	resultsCh := make(chan queryResult, len(ipList))
-	sem := make(chan struct{}, concurrency)
-	var wg sync.WaitGroup
+	taskCh := make(chan string, concurrency)
 
-	for _, ip := range ipList {
+	var wg sync.WaitGroup
+	for w := 0; w < concurrency; w++ {
 		wg.Add(1)
-		go func(ip string) {
+		go func() {
 			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			rr, err := checkIPRisk(ip, threshold, timeout)
-			resultsCh <- queryResult{ip: ip, r: rr, err: err}
-		}(ip)
+			for ip := range taskCh {
+				rr, err := checkIPRisk(ip, threshold, timeout)
+				resultsCh <- queryResult{ip: ip, r: rr, err: err}
+			}
+		}()
 	}
-	wg.Wait()
-	close(resultsCh)
+	for _, ip := range ipList {
+		taskCh <- ip
+	}
+	close(taskCh)
+	go func() {
+		wg.Wait()
+		close(resultsCh)
+	}()
 
 	// 收集查询结果
 	riskMap := make(map[string]*RiskCheckResult, len(ipList))
-	var allChecks []RiskCheckResult
+	allChecks := make([]RiskCheckResult, 0, len(ipList))
 	for q := range resultsCh {
 		if q.err != nil || q.r == nil {
 			// 查询失败时默认放行（避免外部 API 故障影响主流程）
@@ -133,13 +140,16 @@ func FilterByRisk(results []model.IPResult, threshold int, timeout time.Duration
 // checkIPRisk 查询单个 IP 的风险分数
 func checkIPRisk(ip string, threshold int, timeout time.Duration) (*RiskCheckResult, error) {
 	url := fmt.Sprintf("https://api.ipapi.is/?q=%s", ip)
-	client := &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			// P2-10: 直连模式 — 显式禁用代理
-			Proxy: nil,
-		},
+	transport := &http.Transport{
+		// P2-10: 直连模式 — 显式禁用代理
+		Proxy: nil,
 	}
+	client := &http.Client{
+		Timeout:   timeout,
+		Transport: transport,
+	}
+	// 内存优化:函数退出时清理 transport 持有的空闲连接与底层资源
+	defer transport.CloseIdleConnections()
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err

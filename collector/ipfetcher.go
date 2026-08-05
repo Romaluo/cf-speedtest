@@ -251,7 +251,8 @@ func parseIPList(lines []string, allowedPorts []int) []model.Task {
 		portSet[p] = true
 	}
 
-	var tasks []model.Task
+	// 内存优化:以 len(lines) 为起始容量减少早期扩容
+	tasks := make([]model.Task, 0, len(lines))
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -397,7 +398,8 @@ func sampleCIDRsWeighted(cidrs []string, ports []int, total int, stats *CIDRStat
 	quotas := computeQuotas(cidrs, total, stats)
 
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	var tasks []model.Task
+	// 内存优化:已知上界为 total*len(ports),预分配避免循环内扩容
+	tasks := make([]model.Task, 0, total*len(ports))
 
 	for i, cidr := range cidrs {
 		_, ipNet, err := net.ParseCIDR(cidr)
@@ -520,7 +522,8 @@ func sampleCIDRsFixed(cidrs []string, ports []int, perCIDR int) []model.Task {
 	}
 
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	var tasks []model.Task
+	// 内存优化:已知上界为 len(cidrs)*perCIDR*len(ports),预分配避免循环内扩容
+	tasks := make([]model.Task, 0, len(cidrs)*perCIDR*len(ports))
 
 	for _, cidr := range cidrs {
 		_, ipNet, err := net.ParseCIDR(cidr)

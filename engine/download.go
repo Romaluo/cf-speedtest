@@ -69,6 +69,8 @@ func DownloadTest(targetURL string, ip string, port int, expectedSize int64, con
 		Timeout:   readTimeout,
 		Transport: transport,
 	}
+	// 内存优化:函数退出时清理 transport 持有的空闲连接与底层资源
+	defer transport.CloseIdleConnections()
 
 	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
 	if err != nil {

@@ -43,44 +43,51 @@ func PreFilterTCP(tasks []model.Task, concurrency int, timeout time.Duration) ([
 	}
 
 	results := make([]PreFilterResult, len(tasks))
-	sem := make(chan struct{}, concurrency)
-	var wg sync.WaitGroup
 	var successCount int64
 	var totalLatency int64
 	var mu sync.Mutex
 
 	start := time.Now()
 
-	for i, task := range tasks {
+	// 内存优化:worker pool 模式 — 仅启动 concurrency 个 worker,而非为每个任务创建 goroutine
+	// 避免 10 万任务 = 10 万 goroutine(约 800MB 栈内存)的爆炸
+	taskCh := make(chan int, concurrency)
+	var wg sync.WaitGroup
+	for w := 0; w < concurrency; w++ {
 		wg.Add(1)
-		go func(idx int, t model.Task) {
+		go func() {
 			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
+			for idx := range taskCh {
+				t := tasks[idx]
+				result := PreFilterResult{IP: t.IP, Port: t.Port}
+				handshakeStart := time.Now()
+				addr := net.JoinHostPort(t.IP, fmt.Sprintf("%d", t.Port))
+				conn, err := net.DialTimeout("tcp", addr, timeout)
+				result.Latency = time.Since(handshakeStart)
 
-			result := PreFilterResult{IP: t.IP, Port: t.Port}
-			handshakeStart := time.Now()
-			addr := net.JoinHostPort(t.IP, fmt.Sprintf("%d", t.Port))
-			conn, err := net.DialTimeout("tcp", addr, timeout)
-			result.Latency = time.Since(handshakeStart)
+				if err != nil {
+					result.Success = false
+					result.Error = err.Error()
+				} else {
+					result.Success = true
+					conn.Close()
+					mu.Lock()
+					successCount++
+					totalLatency += int64(result.Latency)
+					mu.Unlock()
+				}
 
-			if err != nil {
-				result.Success = false
-				result.Error = err.Error()
-			} else {
-				result.Success = true
-				conn.Close()
-				mu.Lock()
-				successCount++
-				totalLatency += int64(result.Latency)
-				mu.Unlock()
+				results[idx] = result
 			}
-
-			results[idx] = result
-		}(i, task)
+		}()
 	}
 
+	for i := range tasks {
+		taskCh <- i
+	}
+	close(taskCh)
 	wg.Wait()
+
 	stats := PreFilterStats{
 		Total:    len(tasks),
 		Success:  int(successCount),

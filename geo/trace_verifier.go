@@ -35,7 +35,6 @@ type TraceVerifier struct {
 	httpTimeout    time.Duration
 	connectTimeout time.Duration
 	skipTLSVerify  bool
-	client         *http.Client
 }
 
 // NewTraceVerifier 创建 trace 验证器
@@ -81,6 +80,8 @@ func (tv *TraceVerifier) VerifyIP(ip string) (colo, countryCode string, err erro
 		Transport: transport,
 		Timeout:   tv.httpTimeout,
 	}
+	// 内存优化:函数退出时清理 transport 持有的空闲连接与底层资源
+	defer transport.CloseIdleConnections()
 
 	resp, err := client.Get(tv.endpoint)
 	if err != nil {

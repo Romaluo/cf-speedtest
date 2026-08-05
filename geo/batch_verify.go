@@ -20,18 +20,13 @@ func VerifyTasksCountryCodes(tasks []model.Task, resolver *Resolver, concurrency
 	}
 
 	var mu sync.Mutex
-	wg := &sync.WaitGroup{}
-	sem := make(chan struct{}, concurrency)
-
-	// 标记每个 IP 是否验证通过
 	passed := make([]bool, len(tasks))
 
+	// 第一阶段:已在纠错层中的 IP 直接修正,无需 trace,无需 goroutine
+	needVerify := make([]int, 0, len(tasks))
 	for i := range tasks {
-		ip := tasks[i].IP
-
-		// 1. 已在纠错层中的 IP 直接修正（无需 trace）
 		if resolver.corrections != nil {
-			if cc, ok := resolver.corrections.Lookup(ip); ok {
+			if cc, ok := resolver.corrections.Lookup(tasks[i].IP); ok {
 				if tasks[i].CountryCode != cc {
 					tasks[i].CountryCode = cc
 					corrected++
@@ -40,40 +35,50 @@ func VerifyTasksCountryCodes(tasks []model.Task, resolver *Resolver, concurrency
 				continue
 			}
 		}
-
-		// 2. 需要 trace 验证的 IP
-		wg.Add(1)
-		go func(idx int) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			colo, cc, err := resolver.traceVerifier.VerifyIP(tasks[idx].IP)
-			if err != nil || cc == "" {
-				mu.Lock()
-				failed++
-				mu.Unlock()
-				return
-			}
-
-			oldCC := tasks[idx].CountryCode
-			tasks[idx].CountryCode = cc
-
-			// 持久化到纠错层
-			if resolver.corrections != nil {
-				resolver.corrections.Add(tasks[idx].IP, cc)
-			}
-
-			if oldCC != cc {
-				mu.Lock()
-				corrected++
-				mu.Unlock()
-			}
-			passed[idx] = true
-			_ = colo
-		}(i)
+		needVerify = append(needVerify, i)
 	}
-	wg.Wait()
+
+	if len(needVerify) > 0 {
+		// 第二阶段:worker pool 仅启动 concurrency 个 worker 处理需要 trace 的任务
+		// 内存优化:避免为每个待验证 IP 创建一个 goroutine
+		taskCh := make(chan int, concurrency)
+		var wg sync.WaitGroup
+		for w := 0; w < concurrency; w++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for idx := range taskCh {
+					colo, cc, err := resolver.traceVerifier.VerifyIP(tasks[idx].IP)
+					if err != nil || cc == "" {
+						mu.Lock()
+						failed++
+						mu.Unlock()
+						continue
+					}
+
+					oldCC := tasks[idx].CountryCode
+					tasks[idx].CountryCode = cc
+
+					if resolver.corrections != nil {
+						resolver.corrections.Add(tasks[idx].IP, cc)
+					}
+
+					if oldCC != cc {
+						mu.Lock()
+						corrected++
+						mu.Unlock()
+					}
+					passed[idx] = true
+					_ = colo
+				}
+			}()
+		}
+		for _, idx := range needVerify {
+			taskCh <- idx
+		}
+		close(taskCh)
+		wg.Wait()
+	}
 
 	// 只保留验证通过的 IP（失败的直接移除，不进入测速）
 	validTasks = make([]model.Task, 0, len(tasks))

@@ -51,6 +51,8 @@ func HTTPing(targetURL string, ip string, port int, count int, connectTimeout, r
 		Timeout:   readTimeout,
 		Transport: transport,
 	}
+	// 内存优化:函数退出时清理 transport 持有的空闲连接与底层资源
+	defer transport.CloseIdleConnections()
 
 	var latencies []time.Duration
 	var lastStatusCode int

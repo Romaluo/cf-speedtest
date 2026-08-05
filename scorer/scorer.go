@@ -60,7 +60,8 @@ func FilterByCountries(results []model.IPResult, resolver *geo.Resolver, countri
 		countrySet[strings.ToUpper(strings.TrimSpace(c))] = true
 	}
 
-	var filtered []model.IPResult
+	// 内存优化:以 len(results) 为上界预分配容量(过滤后元素数 ≤ 输入)
+	filtered := make([]model.IPResult, 0, len(results))
 	for _, r := range results {
 		if r.Err != nil || r.TCPLossRate >= 1.0 {
 			continue
@@ -100,7 +101,9 @@ func SelectHybridTopN(results []model.IPResult, countries []string, n int) []mod
 		countrySet[strings.ToUpper(strings.TrimSpace(c))] = true
 	}
 
-	var manualGroup, autoGroup []model.IPResult
+	// 内存优化:以 len(results) 为上界预分配容量(分组后元素数 ≤ 输入)
+	manualGroup := make([]model.IPResult, 0, len(results))
+	autoGroup := make([]model.IPResult, 0, len(results))
 	for _, r := range results {
 		if countrySet[strings.ToUpper(r.CountryCode)] {
 			manualGroup = append(manualGroup, r)
@@ -219,7 +222,8 @@ func calcScore100(r *model.IPResult, cfg *config.Config) float64 {
 
 // Score 对结果进行100分制评分，截断为TopN
 func Score(results []model.IPResult, cfg *config.Config) []model.IPResult {
-	var valid []model.IPResult
+	// 内存优化:预分配容量(大多数结果有效)
+	valid := make([]model.IPResult, 0, len(results))
 	for _, r := range results {
 		if r.Err == nil && r.TCPLossRate < 1.0 {
 			valid = append(valid, r)
@@ -247,7 +251,8 @@ func Score(results []model.IPResult, cfg *config.Config) []model.IPResult {
 
 // ScoreAllResults 对所有结果进行100分制评分（不截断TopN）
 func ScoreAllResults(results []model.IPResult, cfg *config.Config) []model.IPResult {
-	var valid []model.IPResult
+	// 内存优化:预分配容量(大多数结果有效)
+	valid := make([]model.IPResult, 0, len(results))
 	for _, r := range results {
 		if r.Err == nil && r.TCPLossRate < 1.0 {
 			valid = append(valid, r)

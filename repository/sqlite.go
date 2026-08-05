@@ -245,8 +245,8 @@ func (db *DB) GetValidIPs(expireDuration time.Duration) (map[string]bool, error)
 
 // BatchUpsert 批量写入（分块事务，每 batchSize 条为一个事务）
 func (db *DB) BatchUpsert(results []model.IPResult) error {
-	// 过滤错误结果
-	var valid []model.IPResult
+	// 过滤错误结果 — 内存优化:预分配容量(大多数结果有效)
+	valid := make([]model.IPResult, 0, len(results))
 	for _, r := range results {
 		if r.Err == nil {
 			valid = append(valid, r)
@@ -332,7 +332,8 @@ func (db *DB) GetTopResults(topN int) ([]model.IPResult, error) {
 	}
 	defer rows.Close()
 
-	var results []model.IPResult
+	// 内存优化:已知 LIMIT = topN,预分配容量
+	results := make([]model.IPResult, 0, topN)
 	for rows.Next() {
 		var r model.IPResult
 		var tcpLatency, httpLatency int64
@@ -744,7 +745,8 @@ func (db *DB) GetTopResultsByPorts(topN int, ports []int) ([]model.IPResult, err
 	}
 	defer rows.Close()
 
-	var results []model.IPResult
+	// 内存优化:已知 LIMIT = topN,预分配容量
+	results := make([]model.IPResult, 0, topN)
 	for rows.Next() {
 		var r model.IPResult
 		var tcpLatency, httpLatency int64
