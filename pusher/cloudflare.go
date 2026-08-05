@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	"cf-speedtest/config"
@@ -16,6 +17,7 @@ import (
 type CloudflarePusher struct {
 	cfg    *config.Config
 	client *http.Client
+	mu     sync.Mutex // 防止同进程内并发推送(定时推送 + 手动推送可能重叠)
 }
 
 // NewCloudflarePusher 创建 Cloudflare 推送器
@@ -26,6 +28,39 @@ func NewCloudflarePusher(cfg *config.Config) *CloudflarePusher {
 			Timeout: 30 * time.Second,
 		},
 	}
+}
+
+// cfError Cloudflare API 错误响应中的 errors 数组元素
+type cfError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+// cfErrorResponse Cloudflare API 错误响应结构
+type cfErrorResponse struct {
+	Success bool      `json:"success"`
+	Errors  []cfError `json:"errors"`
+}
+
+// isIdempotentSuccess 判断 Cloudflare API 响应是否为幂等成功
+// 以下情况目标状态已达成,应视为成功而非错误:
+//   - HTTP 404 + code 81044 "Record does not exist"   (删除记录时记录已不在,目标达成)
+//   - HTTP 400 + code 81058 "An identical record already exists" (创建记录时记录已存在,目标达成)
+//
+// 这避免了"删又删不掉、建又建不成"的矛盾错误(常见于并发推送或 Batch 部分成功后降级重放)
+func isIdempotentSuccess(statusCode int, body []byte) bool {
+	var resp cfErrorResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return false
+	}
+	for _, e := range resp.Errors {
+		// 81044: 记录不存在(删除幂等)
+		// 81058: 相同记录已存在(创建幂等)
+		if e.Code == 81044 || e.Code == 81058 {
+			return true
+		}
+	}
+	return false
 }
 
 // dnsRecord Cloudflare DNS 记录
@@ -51,7 +86,13 @@ type PushResult struct {
 // Push 将多个 IP 推送到 Cloudflare DNS（多IP模式）
 // 逻辑: 1. 获取现有所有 A 记录 2. 通过 Batch API 单次提交删除+创建操作
 // P1-5: 优先使用 Batch API（POST /dns_records/batch），失败时降级为单条操作
+//
+// 并发安全:通过 mu 互斥锁防止同进程内并发推送(定时推送与手动推送重叠)。
+// 跨进程并发需通过部署层保证(仅运行一个 cf-speedtest 实例)。
 func (p *CloudflarePusher) Push(results []model.IPResult) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	if p.cfg.CFAPIKey == "" || p.cfg.CFZoneID == "" || p.cfg.CFDNSName == "" {
 		return fmt.Errorf("Cloudflare 配置不完整: cf_api_key, cf_zone_id, cf_dns_name 均不能为空")
 	}
@@ -111,13 +152,26 @@ func (p *CloudflarePusher) Push(results []model.IPResult) error {
 	}
 
 	// 降级：Batch API 失败时使用单条操作
-	fmt.Printf("[WARN] Batch API 失败: %v，降级为单条操作\n", batchErr)
+	// 重要:Batch API 可能已部分执行(部分记录已删除/创建),不能复用 existingMap,
+	// 否则会用过期状态重放操作,导致 404(删除已删) / 400(创建已存在) 错误。
+	// 修复:降级前重新拉取最新 DNS 记录,基于最新状态决策。
+	fmt.Printf("[WARN] Batch API 失败: %v，降级为单条操作(重新拉取最新 DNS 记录)\n", batchErr)
+
+	freshRecords, freshErr := p.getAllDNSRecords()
+	if freshErr != nil {
+		fmt.Printf("[WARN] 降级后重新查询 DNS 记录失败: %v，回退到初始缓存(可能产生幂等错误,已自动视为成功)\n", freshErr)
+		freshRecords = existingRecords
+	}
+	freshMap := make(map[string]dnsRecord, len(freshRecords))
+	for _, r := range freshRecords {
+		freshMap[r.Content] = r
+	}
 
 	newIPSet := make(map[string]bool, len(newIPs))
 	for _, ip := range newIPs {
 		newIPSet[ip] = true
 	}
-	for ip, record := range existingMap {
+	for ip, record := range freshMap {
 		if !newIPSet[ip] {
 			if err := p.deleteDNSRecord(record.ID); err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("删除旧记录 %s 失败: %v", ip, err))
@@ -132,7 +186,7 @@ func (p *CloudflarePusher) Push(results []model.IPResult) error {
 
 	// 4. 为新IP创建记录（已存在的跳过）
 	for _, ip := range newIPs {
-		if _, exists := existingMap[ip]; exists {
+		if _, exists := freshMap[ip]; exists {
 			continue
 		}
 		if err := p.createDNSRecord(ip); err != nil {
@@ -325,6 +379,7 @@ func (p *CloudflarePusher) getAllDNSRecords() ([]dnsRecord, error) {
 }
 
 // createDNSRecord 创建新的 A 记录
+// 幂等处理:若记录已存在(CF code 81058),视为成功(目标达成)
 func (p *CloudflarePusher) createDNSRecord(ip string) error {
 	ttl := p.cfg.CFDNSTTL
 	if ttl <= 0 {
@@ -362,6 +417,10 @@ func (p *CloudflarePusher) createDNSRecord(ip string) error {
 
 	if resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(resp.Body)
+		// 幂等成功:相同记录已存在(code 81058),目标状态已达成
+		if isIdempotentSuccess(resp.StatusCode, respBody) {
+			return nil
+		}
 		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respBody))
 	}
 
@@ -369,6 +428,7 @@ func (p *CloudflarePusher) createDNSRecord(ip string) error {
 }
 
 // deleteDNSRecord 删除指定的 DNS 记录
+// 幂等处理:若记录已不存在(CF code 81044),视为成功(目标达成)
 func (p *CloudflarePusher) deleteDNSRecord(recordID string) error {
 	url := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s",
 		p.cfg.CFZoneID, recordID)
@@ -388,6 +448,10 @@ func (p *CloudflarePusher) deleteDNSRecord(recordID string) error {
 
 	if resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(resp.Body)
+		// 幂等成功:记录已不存在(code 81044),目标状态已达成
+		if isIdempotentSuccess(resp.StatusCode, respBody) {
+			return nil
+		}
 		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respBody))
 	}
 
