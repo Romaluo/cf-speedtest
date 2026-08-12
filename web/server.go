@@ -71,6 +71,7 @@ func (srv *Server) Start() error {
 		Addr:              addr,
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1MB,防超大头部攻击
 	}
 	return srv.httpServer.ListenAndServe()
 }
@@ -167,8 +168,14 @@ func (srv *Server) routes() http.Handler {
 		})
 	}
 
-	// 请求日志中间件
+	// 请求日志 + 安全中间件
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 安全响应头
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		// 限制请求体大小(1MB),防大 body 资源消耗攻击
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			srv.deps.Logger.Debug("WEB", "%s %s", r.Method, r.URL.Path)
 		}

@@ -1,18 +1,18 @@
 {
-  "version": "1.1.0",
-  "release_notes": "## ✨ 新功能\n- collect_time 多时间点定时采集:支持配置多个时间点自动测速\n- 手动/自动备份功能:可手动触发备份或定时自动备份\n- 定时配置保存后提示重启服务\n\n## 🐛 修复\n- 启动日志打印 CollectTime 配置值,便于排查多时间点问题\n\n## 🔒 安全\n- 脱敏 README 中 systemd 服务路径的用户名",
-  "published_at": "2026-08-04T14:32:11Z",
+  "version": "1.1.1",
+  "release_notes": "## 🚀 性能优化\n- HTTP Transport 泄漏修复:engine/httping、download、risk、geo/trace_verifier 添加 CloseIdleConnections\n- Goroutine 爆炸修复:PreFilterTCP/VerifyTasksCountryCodes/FilterByRisk 改用 worker pool\n- Slice 预分配:sqlite/scorer/collector 多处已知大小 slice 预分配减少扩容\n\n## 🔧 CF DNS 推送修复\n- 幂等错误处理:删除遇 81044、创建遇 81058 视为成功\n- Batch 降级重新拉取最新 DNS 状态,避免过期 map 重放\n- Push 入口加 sync.Mutex 防同进程并发推送竞态\n\n## 🎯 采样策略调整\n- CIDR 采样配额从 70/30 调整为 60/40(利用/探索),增加探索比例\n\n## 🔒 安全增强\n- 安全响应头:X-Content-Type-Options、X-Frame-Options、Referrer-Policy\n- 请求体大小限制 1MB(MaxBytesReader)+ MaxHeaderBytes\n- limit 参数上界校验(最大 1000),防资源消耗攻击\n\n## 🧹 清理\n- 删除已完成的规划文档 plan-update-feature.md",
+  "published_at": "2026-08-12T12:40:00Z",
   "min_required_version": "1.0.0",
   "assets": {
     "linux/amd64": {
-      "url": "https://github.com/Romaluo/cf-speedtest/releases/download/v1.1.0/cf-speedtest-linux-amd64.tar.gz",
-      "size": 9371134,
-      "sha256": "74798af8e7ef28c5fa188d38f74138c73d7a7ead82a210eb8a478759f748b2a8"
+      "url": "https://github.com/Romaluo/cf-speedtest/releases/download/v1.1.1/cf-speedtest-linux-amd64.tar.gz",
+      "size": 9486049,
+      "sha256": "99cf35ae4a70a1a5864b92ab42c0d5465ce0027e8136dbb7f1dec3ec04d1f433"
     },
     "windows/amd64": {
-      "url": "https://github.com/Romaluo/cf-speedtest/releases/download/v1.1.0/cf-speedtest-windows-amd64.zip",
-      "size": 9169360,
-      "sha256": "162931c6786c8e5edba6853a1dda432e3de98c560546f80757412466dc3fa324"
+      "url": "https://github.com/Romaluo/cf-speedtest/releases/download/v1.1.1/cf-speedtest-windows-amd64.zip",
+      "size": 9576036,
+      "sha256": "94203cf1e8ee029e40a4759f1f4199a627a8a00a4a83c31410408b500947ccb4"
     }
   }
 }

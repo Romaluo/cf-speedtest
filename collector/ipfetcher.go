@@ -433,7 +433,7 @@ func sampleCIDRsWeighted(cidrs []string, ports []int, total int, stats *CIDRStat
 }
 
 // computeQuotas 根据权重计算各 CIDR 的采样配额
-// 策略：70% 按历史命中率加权（利用），30% 均匀分配（探索）
+// 策略：60% 按历史命中率加权（利用），40% 均匀分配（探索）
 // 确保每个 CIDR 至少 1 个配额
 func computeQuotas(cidrs []string, total int, stats *CIDRStats) []int {
 	n := len(cidrs)
@@ -472,8 +472,8 @@ func computeQuotas(cidrs []string, total int, stats *CIDRStats) []int {
 		return quotas
 	}
 
-	// 70% 按权重分配，30% 均匀探索
-	exploitPool := int(float64(total) * 0.7)
+	// 60% 按权重分配，40% 均匀探索
+	exploitPool := int(float64(total) * 0.6)
 	explorePool := total - exploitPool
 	perExplore := explorePool / n
 	if perExplore < 1 {

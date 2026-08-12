@@ -81,6 +81,15 @@ func (srv *Server) listResultsHandler(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	limit := parseIntDefault(q.Get("limit"), 50)
 	offset := parseIntDefault(q.Get("offset"), 0)
+	// 输入校验:防负数与超大值导致资源消耗
+	if limit < 0 {
+		limit = 50
+	} else if limit > 1000 {
+		limit = 1000
+	}
+	if offset < 0 {
+		offset = 0
+	}
 	minScore := parseFloatDefault(q.Get("min_score"), 0)
 
 	f := repository.ResultFilter{

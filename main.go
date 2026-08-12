@@ -42,7 +42,7 @@ var (
 	pushOnly     = flag.Bool("push_only", false, "仅执行推送（不测速）")
 )
 
-const version = "1.1.0"
+const version = "1.1.1"
 
 var logger *log.Logger
 var cleaner *cleanup.Cleaner
