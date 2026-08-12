@@ -41,11 +41,11 @@ func newTestManager(t *testing.T) (*Manager, *fakeRestarter) {
 	if err != nil {
 		t.Fatalf("创建 logger 失败: %v", err)
 	}
-	checker := NewChecker("http://localhost/version.json", "1.0.0", logger)
+	checker := NewChecker("http://localhost/version.json", "1.0.0", "", logger)
 	if checker == nil {
 		t.Fatalf("NewChecker 返回 nil")
 	}
-	dl := NewDownloader(t.TempDir(), logger)
+	dl := NewDownloader(t.TempDir(), "", logger)
 	mgr := NewManager(checker, dl, logger)
 	if mgr == nil {
 		t.Fatalf("NewManager 返回 nil")
@@ -82,7 +82,7 @@ func TestApply_CheckerNil(t *testing.T) {
 	logger, _ := log.NewLogger(filepath.Join(t.TempDir(), "test.log"), log.LevelDebug)
 	mgr := &Manager{
 		checker:      nil,
-		downloader:   NewDownloader(t.TempDir(), logger),
+		downloader:   NewDownloader(t.TempDir(), "", logger),
 		installer:    NewInstaller(logger),
 		logger:       logger,
 		currentState: StateIdle,
@@ -97,7 +97,7 @@ func TestApply_CheckerNil(t *testing.T) {
 // TestApply_DownloaderNil downloader 为 nil 时应返回 ErrDownloaderNotInitialized
 func TestApply_DownloaderNil(t *testing.T) {
 	logger, _ := log.NewLogger(filepath.Join(t.TempDir(), "test.log"), log.LevelDebug)
-	checker := NewChecker("http://localhost/version.json", "1.0.0", logger)
+	checker := NewChecker("http://localhost/version.json", "1.0.0", "", logger)
 	mgr := &Manager{
 		checker:      checker,
 		downloader:   nil,
@@ -192,10 +192,10 @@ func TestCheck_RejectConcurrentCheck(t *testing.T) {
 // TestNewChecker_EmptyParams 空参数应返回 nil
 func TestNewChecker_EmptyParams(t *testing.T) {
 	logger, _ := log.NewLogger(filepath.Join(t.TempDir(), "test.log"), log.LevelDebug)
-	if c := NewChecker("", "1.0.0", logger); c != nil {
+	if c := NewChecker("", "1.0.0", "", logger); c != nil {
 		t.Errorf("空 url 时 NewChecker 应返回 nil")
 	}
-	if c := NewChecker("http://x", "", logger); c != nil {
+	if c := NewChecker("http://x", "", "", logger); c != nil {
 		t.Errorf("空 currentVersion 时 NewChecker 应返回 nil")
 	}
 }

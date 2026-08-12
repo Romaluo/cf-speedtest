@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -31,14 +32,24 @@ type Downloader struct {
 
 // NewDownloader 创建下载器
 // tempDir 为空时使用 os.TempDir()
+// proxy 为 HTTP 代理地址(http://host:port,空=直连)
 // logger 用于记录下载流程的关键事件(开始/续传/重试/完成/校验),可为 nil
-func NewDownloader(tempDir string, logger *log.Logger) *Downloader {
+func NewDownloader(tempDir, proxy string, logger *log.Logger) *Downloader {
 	if tempDir == "" {
 		tempDir = os.TempDir()
 	}
+	client := &http.Client{Timeout: 0}
+	if proxy != "" {
+		if pu, err := neturl.Parse(proxy); err == nil {
+			client.Transport = &http.Transport{Proxy: http.ProxyURL(pu)}
+			if logger != nil {
+				logger.Info("UPDATE", "下载器已配置代理: %s", proxy)
+			}
+		}
+	}
 	return &Downloader{
 		// Timeout=0:下载大文件时不因总耗时超时,由 ctx 控制
-		httpClient: &http.Client{Timeout: 0},
+		httpClient: client,
 		tempDir:    tempDir,
 		logger:     logger,
 	}

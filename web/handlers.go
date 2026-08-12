@@ -474,6 +474,7 @@ type configDTO struct {
 	UpdateCheckInterval string `json:"update_check_interval"` // 检查间隔(字符串形式,如 24h)
 	UpdateAutoDownload  bool   `json:"update_auto_download"`  // 检测到新版本时自动下载
 	UpdateTempDir       string `json:"update_temp_dir"`       // 下载/解压临时目录
+	UpdateProxy         string `json:"update_proxy"`          // 更新下载代理(http://host:port,空=直连)
 }
 
 func cfgToDTO(c *config.Config) configDTO {
@@ -555,6 +556,7 @@ func cfgToDTO(c *config.Config) configDTO {
 		UpdateCheckInterval:    durStr(c.UpdateCheckInterval),
 		UpdateAutoDownload:     c.UpdateAutoDownload,
 		UpdateTempDir:          c.UpdateTempDir,
+		UpdateProxy:            c.UpdateProxy,
 	}
 }
 
@@ -700,6 +702,7 @@ func dtoToCfg(d configDTO) (*config.Config, error) {
 	}
 	c.UpdateAutoDownload = d.UpdateAutoDownload
 	c.UpdateTempDir = d.UpdateTempDir
+	c.UpdateProxy = strings.TrimSpace(d.UpdateProxy)
 	return c, nil
 }
 

@@ -1046,6 +1046,11 @@ async function loadConfig(){
   }catch(e){ toast(e.message,'err'); }
 }
 function field(label, key, type='text', opts={}){
+  // 兼容 field(label, key, {opts}) 调用模式(第三参数为对象时视为 opts)
+  if(typeof type === 'object' && type !== null){
+    opts = type;
+    type = 'text';
+  }
   let v = curConfig[key] ?? '';
   if(Array.isArray(v)){
     v = type==='textarea' ? v.join('\n') : v.join(',');
@@ -1238,6 +1243,7 @@ function renderConfigForm(c){
       <span class="hint">检测到新版本时自动下载(不会自动安装,需手动确认安装)</span>
     </div>` +
     field('临时目录','update_temp_dir',{hint:'下载/解压临时目录(空=系统默认 /tmp 或 %TEMP%)'}) +
+    field('更新代理','update_proxy',{full:true,hint:'http://host:port 格式,空=直连。国内网络建议配置代理以加速 GitHub 下载,否则自动更新可能因限速失败'}) +
     `<div class="field full" style="margin-top:8px;padding:12px;background:var(--panel2);border-radius:6px;border:1px solid var(--border)">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:8px">
         <div>
@@ -1523,7 +1529,12 @@ function updateLastCheckDisplay(s){
   const errEl = $('#last-check-error');
   if(errEl){
     if(s.last_check_error){
-      errEl.textContent = '错误: ' + s.last_check_error;
+      let msg = '错误: ' + s.last_check_error;
+      // 网络超时/连接失败时提示配置代理
+      if(/timeout|refused|connect|dial|network|unreachable|no such host/i.test(s.last_check_error)){
+        msg += ' | 提示: 国内网络可能无法直连 GitHub,请在"配置 → 自动更新 → 更新代理"中设置 HTTP 代理';
+      }
+      errEl.textContent = msg;
       errEl.style.display = 'block';
     } else {
       errEl.style.display = 'none';
@@ -1674,7 +1685,12 @@ function handleErrorEvent(ev){
   $('#um-cancel-btn').style.display = 'none';
   $('#um-close-btn').style.display = '';
   const errEl = $('#um-err');
-  errEl.textContent = ev.error || '未知错误';
+  let errMsg = ev.error || '未知错误';
+  // 下载阶段网络失败时提示配置代理
+  if(ev.state === 'downloading' && /timeout|refused|connect|dial|network|unreachable|no such host|EOF/i.test(errMsg)){
+    errMsg += '\n提示: 国内网络可能无法直连 GitHub,请在"配置 → 自动更新 → 更新代理"中设置 HTTP 代理后重试';
+  }
+  errEl.textContent = errMsg;
   errEl.classList.remove('hidden');
   // 标记当前步骤为失败
   const failedStep = ev.state && UPDATE_STEP_ORDER.includes(ev.state) ? ev.state : null;
@@ -1906,21 +1922,33 @@ function collectConfig(){
   c.web_username=get('web_username'); c.web_password=get('web_password'); c.web_session_ttl=get('web_session_ttl');
   c.update_check_enable=getChk('update_check_enable'); c.update_check_url=get('update_check_url');
   c.update_check_interval=get('update_check_interval'); c.update_auto_download=getChk('update_auto_download');
-  c.update_temp_dir=get('update_temp_dir');
+  c.update_temp_dir=get('update_temp_dir'); c.update_proxy=(get('update_proxy')||'').trim();
   return c;
 }
 async function testConfig(){
   if(getSelectedPorts().length === 0){ toast('至少选择一个 TCP 端口', 'err'); return; }
   if(!validateConcurrency()){ return; }
+  if(!validateUpdateProxy()){ return; }
   try{
     const r = await api('/api/config/test',{method:'POST',body:JSON.stringify(collectConfig())});
     toast(r.valid?'校验通过':'校验失败: '+(r.error||''), r.valid?'ok':'err');
   }catch(e){ toast(e.message,'err'); }
 }
+// validateUpdateProxy 校验更新代理格式(空=直连,非空必须 http:// 或 https:// 开头)
+function validateUpdateProxy(){
+  const p = (get('update_proxy')||'').trim();
+  if(p === '') return true;
+  if(!/^https?:\/\/[^\s]+:\d+/.test(p)){
+    toast('更新代理格式错误:必须为 http://host:port 或 https://host:port', 'err');
+    return false;
+  }
+  return true;
+}
 async function saveConfig(){
   if(getSelectedPorts().length === 0){ toast('至少选择一个 TCP 端口才能保存', 'err'); return; }
   if(!validateWeightSum()){ toast('四项权重之和必须等于 1.0', 'err'); return; }
   if(!validateConcurrency()){ return; }
+  if(!validateUpdateProxy()){ return; }
   if(!await customConfirm('保存配置？将覆盖 config.yaml（注释会丢失，原始版本备份为 .bak）')) return;
   // 记录定时相关配置的原始值（修改后需重启才生效）
   const oldCollectTime = curConfig ? curConfig.collect_time : '';

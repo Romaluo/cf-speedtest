@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	neturl "net/url"
 	"runtime"
 	"strings"
 	"sync"
@@ -17,32 +18,42 @@ import (
 // 职责:HTTP GET version.json → 解析 → 对比当前版本 → 缓存到内存
 // 不负责下载/安装,这些由 manager + downloader + installer 协作完成
 type Checker struct {
-	url            string        // version.json 的 URL
-	currentVersion string        // 当前运行的版本号
-	httpClient     *http.Client  // HTTP 客户端(带超时)
-	logger         *log.Logger   // 日志记录器(可为 nil)
+	url            string       // version.json 的 URL
+	currentVersion string       // 当前运行的版本号
+	httpClient     *http.Client // HTTP 客户端(带超时)
+	logger         *log.Logger  // 日志记录器(可为 nil)
 
-	mu         sync.RWMutex
-	manifest   *VersionManifest // 最近一次成功拉取到的 manifest(可能为 nil)
-	lastCheckAt time.Time       // 最近一次检查时间(无论成功失败)
-	lastError  string           // 最近一次检查错误(空=无错误)
+	mu          sync.RWMutex
+	manifest    *VersionManifest // 最近一次成功拉取到的 manifest(可能为 nil)
+	lastCheckAt time.Time        // 最近一次检查时间(无论成功失败)
+	lastError   string           // 最近一次检查错误(空=无错误)
 }
 
 // NewChecker 创建版本检查器
 // url: version.json 的完整 URL(通常为 raw.githubusercontent.com)
 // currentVersion: 当前进程版本号(对应 main.go 的 version 常量)
+// proxy: HTTP 代理地址(http://host:port,空=直连)
 // url 为空或 currentVersion 为空时返回 nil(调用方需检查)
-func NewChecker(url, currentVersion string, logger *log.Logger) *Checker {
+func NewChecker(url, currentVersion, proxy string, logger *log.Logger) *Checker {
 	if url == "" || currentVersion == "" {
 		if logger != nil {
 			logger.Warn("UPDATE", "NewChecker 参数无效: url=%q currentVersion=%q (返回 nil)", url, currentVersion)
 		}
 		return nil
 	}
+	client := &http.Client{Timeout: 30 * time.Second}
+	if proxy != "" {
+		if pu, err := neturl.Parse(proxy); err == nil {
+			client.Transport = &http.Transport{Proxy: http.ProxyURL(pu)}
+			if logger != nil {
+				logger.Info("UPDATE", "版本检查器已配置代理: %s", proxy)
+			}
+		}
+	}
 	return &Checker{
 		url:            url,
 		currentVersion: currentVersion,
-		httpClient:     &http.Client{Timeout: 30 * time.Second},
+		httpClient:     client,
 		logger:         logger,
 	}
 }

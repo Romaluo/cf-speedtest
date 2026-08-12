@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -192,6 +193,7 @@ type Config struct {
 	UpdateCheckInterval time.Duration `yaml:"update_check_interval"` // 检查间隔（默认 24h，最小 1m）
 	UpdateAutoDownload  bool          `yaml:"update_auto_download"`  // 检测到新版本时是否自动下载（不自动安装，默认 false）
 	UpdateTempDir       string        `yaml:"update_temp_dir"`       // 下载/解压临时目录（空=系统默认 /tmp 或 %TEMP%）
+	UpdateProxy         string        `yaml:"update_proxy"`          // 更新下载代理（http://host:port，空=直连；用于绕过 GitHub 限速）
 
 	// 资源清理机制
 	Cleanup CleanupConfig `yaml:"cleanup"` // 任务完成后资源清理配置
@@ -412,6 +414,17 @@ func (cfg *Config) Validate() error {
 		}
 		if cfg.UpdateCheckInterval > 30*24*time.Hour {
 			return fmt.Errorf("update_check_interval 无效: %v，最大 30 天", cfg.UpdateCheckInterval)
+		}
+	}
+
+	// 验证更新代理配置（非空时必须是合法的 http://host:port 格式）
+	proxy := strings.TrimSpace(cfg.UpdateProxy)
+	if proxy != "" {
+		if !strings.HasPrefix(proxy, "http://") && !strings.HasPrefix(proxy, "https://") {
+			return fmt.Errorf("update_proxy 格式错误: 必须以 http:// 或 https:// 开头（当前: %s）", proxy)
+		}
+		if _, err := url.Parse(proxy); err != nil {
+			return fmt.Errorf("update_proxy URL 解析失败: %w", err)
 		}
 	}
 

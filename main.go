@@ -42,7 +42,7 @@ var (
 	pushOnly     = flag.Bool("push_only", false, "仅执行推送（不测速）")
 )
 
-const version = "1.1.1"
+const version = "1.1.2"
 
 var logger *log.Logger
 var cleaner *cleanup.Cleaner
@@ -241,8 +241,8 @@ func main() {
 			} else if version == "" {
 				logger.Warn("UPDATE", "当前版本号为空,跳过更新检查器初始化")
 			} else {
-				checker = updater.NewChecker(cfg.UpdateCheckURL, version, logger)
-				dl := updater.NewDownloader(cfg.UpdateTempDir, logger)
+				checker = updater.NewChecker(cfg.UpdateCheckURL, version, cfg.UpdateProxy, logger)
+				dl := updater.NewDownloader(cfg.UpdateTempDir, cfg.UpdateProxy, logger)
 				mgr = updater.NewManager(checker, dl, logger)
 				// 启动后台版本检查 goroutine:启动 30s 后首次检查,之后按 ticker 间隔重复
 				go startUpdateChecker(checker, cfg.UpdateCheckInterval, logger)

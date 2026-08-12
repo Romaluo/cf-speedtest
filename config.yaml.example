@@ -131,6 +131,7 @@ update_check_url: "https://raw.githubusercontent.com/Romaluo/cf-speedtest/main/v
 update_check_interval: 24h0m0s  # 最小 1m,最大 30d
 update_auto_download: false     # 检测到新版本时自动下载(不自动安装),需手动点击"立即更新"
 update_temp_dir: ""             # 下载/解压临时目录(空=系统默认 /tmp 或 %TEMP%)
+update_proxy: ""                # 更新下载代理(http://host:port,空=直连;国内建议配置以加速 GitHub 下载)
 
 # ===== 资源清理机制 =====
 cleanup:
