@@ -1936,7 +1936,8 @@ async function testConfig(){
 }
 // validateUpdateProxy 校验更新代理格式(空=直连,非空必须 http:// 或 https:// 开头)
 function validateUpdateProxy(){
-  const p = (get('update_proxy')||'').trim();
+  const el = $('#cfg-update_proxy');
+  const p = (el ? el.value : '').trim();
   if(p === '') return true;
   if(!/^https?:\/\/[^\s]+:\d+/.test(p)){
     toast('更新代理格式错误:必须为 http://host:port 或 https://host:port', 'err');
