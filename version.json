@@ -1,18 +1,18 @@
 {
   "version": "1.1.2",
-  "release_notes": "## 🌐 更新代理支持\n- 新增 `update_proxy` 配置项,支持 HTTP 代理地址(http://host:port)\n- 版本检查(Checker)和更新包下载(Downloader)均通过代理访问 GitHub\n- Web 面板「配置 → 自动更新」新增「更新代理」输入框,带格式校验和错误提示\n- 版本检查失败或下载失败时,自动提示用户配置代理(网络错误关键词检测)\n- 修复 `field()` 函数对象参数传递 bug,hint 提示和 full 样式正确渲染\n\n## 🐛 紧急修复\n- 修复 `validateUpdateProxy()` 误用 `collectConfig()` 局部 `get()` 导致 `ReferenceError: get is not defined` 的严重 bug\n- 该 bug 会导致点击「校验」或「保存」按钮时静默崩溃(无 toast、无请求),配置无法保存\n- 改用全局 `$()` 直接读取 DOM 元素,与 `validateConcurrency()` 写法一致\n\n## 🧪 代理测试\n- 新增 `updater/proxy_test.go`:4 个测试覆盖代理下载、代理版本检查、大文件代理下载、直连对照组\n- 验证代理请求数、下载内容完整性、sha256 校验",
-  "published_at": "2026-08-12T15:10:00Z",
+  "release_notes": "## 🌐 更新代理支持\n- 新增 `update_proxy` 配置项,支持 HTTP 代理地址(http://host:port)\n- 版本检查(Checker)和更新包下载(Downloader)均通过代理访问 GitHub\n- Web 面板「配置 → 自动更新」新增「更新代理」输入框,带格式校验和错误提示\n- 版本检查失败或下载失败时,自动提示用户配置代理(网络错误关键词检测)\n- 修复 `field()` 函数对象参数传递 bug,hint 提示和 full 样式正确渲染\n\n## 🐛 紧急修复\n- 修复 `validateUpdateProxy()` 误用 `collectConfig()` 局部 `get()` 导致 `ReferenceError: get is not defined` 的严重 bug\n- 该 bug 会导致点击「校验」或「保存」按钮时静默崩溃(无 toast、无请求),配置无法保存\n- 改用全局 `$()` 直接读取 DOM 元素,与 `validateConcurrency()` 写法一致\n\n## 🔒 安全改进\n- 代理地址日志脱敏:新增 `maskProxy()` 函数,将 `http://user:pass@host:port` 脱敏为 `http://***@host:port`\n- 应用到 Checker/Downloader 日志记录和 Config 校验错误信息,避免凭据明文写入日志文件\n\n## 🧪 代理测试\n- 新增 `updater/proxy_test.go`:4 个测试覆盖代理下载、代理版本检查、大文件代理下载、直连对照组\n- 验证代理请求数、下载内容完整性、sha256 校验",
+  "published_at": "2026-08-12T15:35:00Z",
   "min_required_version": "1.0.0",
   "assets": {
     "linux/amd64": {
       "url": "https://github.com/Romaluo/cf-speedtest/releases/download/v1.1.2/cf-speedtest-linux-amd64.tar.gz",
-      "size": 5201357,
-      "sha256": "cbb63ec4e7b5e6aa78e6cfb5713089e63c9899f14a967ea1b27e77fa5de86a10"
+      "size": 5222628,
+      "sha256": "685a4d6ef4ec4cae49b93386315154df22380e61a285edae3d4fe831cebc2ab0"
     },
     "windows/amd64": {
       "url": "https://github.com/Romaluo/cf-speedtest/releases/download/v1.1.2/cf-speedtest-windows-amd64.zip",
-      "size": 5297431,
-      "sha256": "1ca37c94f4f17959beed4cf0953705c3330f2dda44b9d291c6f28b3d8674c197"
+      "size": 5297776,
+      "sha256": "e6bb764bf4d2676bfadcc0978197725125be1958295e7564c3b37046e0049bb4"
     }
   }
 }
