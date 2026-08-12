@@ -43,7 +43,7 @@ func NewDownloader(tempDir, proxy string, logger *log.Logger) *Downloader {
 		if pu, err := neturl.Parse(proxy); err == nil {
 			client.Transport = &http.Transport{Proxy: http.ProxyURL(pu)}
 			if logger != nil {
-				logger.Info("UPDATE", "下载器已配置代理: %s", proxy)
+				logger.Info("UPDATE", "下载器已配置代理: %s", maskProxy(proxy))
 			}
 		}
 	}

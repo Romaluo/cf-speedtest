@@ -14,6 +14,20 @@ import (
 	"cf-speedtest/log"
 )
 
+// maskProxy 对代理地址中的认证信息脱敏
+// http://user:pass@host:port → http://***@host:port
+// 无认证信息(无 @)时原样返回,避免密码泄露到日志
+func maskProxy(s string) string {
+	at := strings.Index(s, "@")
+	if at < 0 {
+		return s
+	}
+	if scheme := strings.Index(s, "://"); scheme >= 0 && scheme < at {
+		return s[:scheme+3] + "***" + s[at:]
+	}
+	return "***" + s[at:]
+}
+
 // Checker 版本检查器
 // 职责:HTTP GET version.json → 解析 → 对比当前版本 → 缓存到内存
 // 不负责下载/安装,这些由 manager + downloader + installer 协作完成
@@ -46,7 +60,7 @@ func NewChecker(url, currentVersion, proxy string, logger *log.Logger) *Checker 
 		if pu, err := neturl.Parse(proxy); err == nil {
 			client.Transport = &http.Transport{Proxy: http.ProxyURL(pu)}
 			if logger != nil {
-				logger.Info("UPDATE", "版本检查器已配置代理: %s", proxy)
+				logger.Info("UPDATE", "版本检查器已配置代理: %s", maskProxy(proxy))
 			}
 		}
 	}

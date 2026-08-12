@@ -293,6 +293,20 @@ func DefaultConfig() *Config {
 	}
 }
 
+// maskProxy 对代理地址中的认证信息脱敏
+// http://user:pass@host:port → http://***@host:port
+// 无认证信息(无 @)时原样返回,避免密码泄露到错误信息和日志
+func maskProxy(s string) string {
+	at := strings.Index(s, "@")
+	if at < 0 {
+		return s
+	}
+	if scheme := strings.Index(s, "://"); scheme >= 0 && scheme < at {
+		return s[:scheme+3] + "***" + s[at:]
+	}
+	return "***" + s[at:]
+}
+
 // Validate 验证配置项的合法性
 func (cfg *Config) Validate() error {
 	// 验证 IP 选择模式
@@ -421,7 +435,7 @@ func (cfg *Config) Validate() error {
 	proxy := strings.TrimSpace(cfg.UpdateProxy)
 	if proxy != "" {
 		if !strings.HasPrefix(proxy, "http://") && !strings.HasPrefix(proxy, "https://") {
-			return fmt.Errorf("update_proxy 格式错误: 必须以 http:// 或 https:// 开头（当前: %s）", proxy)
+			return fmt.Errorf("update_proxy 格式错误: 必须以 http:// 或 https:// 开头（当前: %s）", maskProxy(proxy))
 		}
 		if _, err := url.Parse(proxy); err != nil {
 			return fmt.Errorf("update_proxy URL 解析失败: %w", err)
